@@ -1,0 +1,29 @@
+{
+  "name": "residencia_universitaria_calhariz_benfica",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start:backend": "node Backend/server.js/index.js",
+    "check:backend": "node --check Backend/config/env.js && node --check Backend/server.js/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jorgiiinho/Residencia_Universitaria_Calhariz_Benfica.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jorgiiinho/Residencia_Universitaria_Calhariz_Benfica/issues"
+  },
+  "homepage": "https://github.com/Jorgiiinho/Residencia_Universitaria_Calhariz_Benfica#readme",
+  "dependencies": {
+    "@dotenvx/dotenvx": "^2.3.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mysql2": "^3.22.6"
+  }
+}
