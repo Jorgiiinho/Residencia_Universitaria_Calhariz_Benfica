@@ -4,12 +4,14 @@ const cors = require('cors');
 const { port, corsOrigin } = require('../config/env');
 const db = require('../config/db');
 
+const cantidaturaRoutes = require('./routes/candidaturaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const app = express();
 
 app.use(cors({ origin: corsOrigin === '*' ? true : corsOrigin }));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/candidatura', cantidaturaRoutes);
 
 app.get('/health', async (_, res) => {
   try {

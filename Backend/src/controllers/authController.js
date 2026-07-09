@@ -1,7 +1,7 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
-exports.register = async (req,res) => {
+exports.registar = async (req,res) => {
     try{
         const{
             primeiro_nome,

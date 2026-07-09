@@ -77,9 +77,22 @@ CREATE TABLE IF NOT EXISTS `mydb`.`agregado_familiar` (
   `nif` VARCHAR(9) NOT NULL,
   `nome_completo` VARCHAR(100) NOT NULL,
   `telefone` VARCHAR(9) NOT NULL,
+  `grau_parentesco` ENUM(
+    'Pai',
+    'Mãe',
+    'Irmão',
+    'Irmã',
+    'Avô',
+    'Avó',
+    'Tio',
+    'Tia',
+    'Primo',
+    'Prima',
+    'Outro'
+  ) NOT NULL,
   INDEX `fk_table1_candidato1_idx` (`candidato_id` ASC) VISIBLE,
   PRIMARY KEY (`íd`),
-  UNIQUE INDEX `nif_UNIQUE` (`nif` ASC) VISIBLE,
+  INDEX `nif_UNIQUE` (`nif` ASC) VISIBLE,
   CONSTRAINT `fk_table1_candidato1` FOREIGN KEY (`candidato_id`) REFERENCES `mydb`.`candidato` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
