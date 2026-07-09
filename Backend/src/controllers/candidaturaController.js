@@ -65,14 +65,15 @@ exports.submeterCandidatura = async (req, res) => {
     }
 
     await connection.commit();
-    return res.status(201).json({ ok: true, mensagem: "Candidatura e agregado submetidos com sucesso!", candidatoId });
-
-  } catch (error) {
+    return res.status(201).json({ ok: true, mensagem: "Etapa 1 concluída! Dados guardados.", candidatoId });
+    
+    } catch (error) {
     // Se houver qualquer falha, desfazemos tudo para não corromper a BD
     await connection.rollback();
     console.error("Erro ao submeter candidatura:", error);
     return res.status(500).json({ erro: "Erro interno ao processar a candidatura.", detalhe: error.message });
-  } finally {
+    
+    } finally {
     // Libertar obrigatoriamente a conexão de volta para a pool
     connection.release();
   }
