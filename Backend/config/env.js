@@ -23,6 +23,8 @@ if (missingVars.length) {
 module.exports = {
   port: Number(process.env.PORT || 5000),
   corsOrigin: process.env.CORS_ORIGIN || '*',
+  // 👇 ADICIONADO: Exportar o segredo do JWT para os controladores e middlewares usarem
+  jwtSecret: process.env.JWT_SECRET || 'chave_reserva_municipio_ribeira_brava', 
   db: {
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT || 4000),

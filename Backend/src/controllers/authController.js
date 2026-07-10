@@ -1,5 +1,8 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const {jwtsecret} = require('../config/env');
+
 
 exports.registar = async (req,res) => {
     try{
@@ -60,4 +63,34 @@ exports.registar = async (req,res) => {
             console.error('Erro registando utilizador:', error);
             res.status(500).json({ error: 'Erro interno do servidor ao criar utilizador' });
         }
+}
+
+exports.login = async (req,res) => {
+    try{
+        const { email, password } = req.body;
+
+        if(!email || !password){
+            return  res.status(400).json({ error: 'Email e password são obrigatórios' });
+        }
+
+        const {rows} = await db.query('SELECT * FROM user WHERE email = ?', [email]);
+        if (rows.length === 0) {
+            return res.status(400).json({ error: 'Email ou password inválidos' });
+        }
+
+        const utilizador = rows[0];
+
+        const passwordCorreta = await bcrypt.compare(password, utilizador.password);
+        if(!passwordCorreta){
+            return res.status(400).json({error: 'Email ou password inválidos'});
+        }
+
+        const token = jwt.sign({ id: utilizador.id, tipo:utilizador.tipo_usuario }, jwtsecret, { expiresIn: '1d' });
+        res.json({ token });
+
+        return res.json({ok: true, message: 'Login bem sucedido', token, user: { id:utilizador.id, primeiro_nome: utilizador.primeiro_nome, apelido: utilizador.apelido, email: utilizador.email, tipo_usuario: utilizador.tipo_usuario }});
+    }catch{
+        console.error('Erro no processo de login:', error);
+        return res.status(500).json({ error: 'Erro interno do servidor ao fazer login' });
+    }
 }

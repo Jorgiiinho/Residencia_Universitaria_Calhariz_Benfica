@@ -4,5 +4,7 @@ const authController = require('../controllers/authController');
 
 //Rota para o registo 
 router.post('/register', authController.register);
+//Rota para o login
+router.post('/login', authController.login);
 
 module.exports = router;

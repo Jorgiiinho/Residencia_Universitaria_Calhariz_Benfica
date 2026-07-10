@@ -2,9 +2,11 @@ const express = require("express");
 const router = express.Router();
 const documentoController = require("../controllers/documentoController");
 const upload = require('../middlewares/uploadMiddleware');
+const loginExigido = require('../middlewares/authMiddleware');
 
 router.post(
-  '/upload/:candidato_id', 
+  '/upload/:candidato_id',
+  loginExigido,
   upload.fields([
     { name: 'Formulario_candidatura', maxCount: 1 },
     { name: 'CC', maxCount: 2 },
