@@ -5,7 +5,7 @@
         "authProtocol": "default",
         "enableSsl": "Enabled",
         "ssl": {
-          "ca": "C:\\Users\\Afons\\Downloads\\isrgrootx1.pem"
+          "ca": "C:\\Users\\Afons\\OneDrive\\Ambiente de Trabalho\\ESTÁGIO\\Residencia_Universitaria_Calhariz_Benfica\\Backend\\config\\certs\\isrgrootx1.pem"
         }
       },
       "ssh": "Disabled",
@@ -15,8 +15,8 @@
       "driver": "TiDB",
       "name": "Residencia-Cloud",
       "database": "sys",
-      "username": "",
-      "password": ""
+      "username": "46a3JDzZ5oxfgpT.root",
+      "password": "7ziYJw8gelKC4dEn"
     }
   ]
 }

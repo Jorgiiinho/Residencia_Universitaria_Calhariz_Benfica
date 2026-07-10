@@ -4,6 +4,7 @@ const documentoController = require("../controllers/documentoController");
 const upload = require('../middlewares/uploadMiddleware');
 const loginExigido = require('../middlewares/authMiddleware');
 
+// ROTA: Importar documentos PDF de um candidato específico (estudante autenticado)
 router.post(
   '/upload/:candidato_id',
   loginExigido,

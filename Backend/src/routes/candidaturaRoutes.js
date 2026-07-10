@@ -3,6 +3,7 @@ const router = express.Router();
 const candidaturaController = require("../controllers/candidaturaController");
 const loginExigido = require('../middlewares/authMiddleware');
 
+// ROTA: Submeter uma candidatura (estudante autenticado)
 router.post('/submeter', loginExigido, candidaturaController.submeterCandidatura);
 
 module.exports = router;

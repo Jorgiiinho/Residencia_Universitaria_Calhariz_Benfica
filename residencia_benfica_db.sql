@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`user` (
 CREATE TABLE IF NOT EXISTS `mydb`.`candidato` (
   `user_id` INT NOT NULL,
   `id` INT NOT NULL AUTO_INCREMENT,
+  `nome_completo` VARCHAR(100),
   `instituicao_1` VARCHAR(45) NOT NULL,
   `instituicao_2` VARCHAR(45) NULL,
   `instituicao_3` VARCHAR(45) NULL,
@@ -61,9 +62,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`candidato` (
 CREATE TABLE IF NOT EXISTS `mydb`.`admin` (
   `user_id` INT NOT NULL,
   `id` INT NOT NULL AUTO_INCREMENT,
-  `nome_completo` VARCHAR(45) NOT NULL,
-  `nif` VARCHAR(9) NOT NULL,
-  `telefone` VARCHAR(12) NOT NULL,
+  `nome_completo` VARCHAR(45),
   INDEX `fk_admin_user_idx` (`user_id` ASC) VISIBLE,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_admin_user` FOREIGN KEY (`user_id`) REFERENCES `mydb`.`user` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION

@@ -55,8 +55,8 @@ exports.registar = async (req,res) => {
 
         //Inserção do utilizador na base de dados
 
-        const inserirUtilizador = 'INSERT INTO user (primeiro_nome, apelido, data_nascimento, num_cc, nif, morada_completa, codigo_postal, telefone, email, password, tipo_usuario) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'candidato\')';
-        await db.query(inserirUtilizador, [primeiro_nome, apelido, data_nascimento, num_cc, nif, morada_completa, codigo_postal, telefone, email, hashedPassword]);
+        const inserirCandidato = 'INSERT INTO user (primeiro_nome, apelido, data_nascimento, num_cc, nif, morada_completa, codigo_postal, telefone, email, password, tipo_usuario) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'candidato\')';
+        await db.query(inserirCandidato, [primeiro_nome, apelido, data_nascimento, num_cc, nif, morada_completa, codigo_postal, telefone, email, hashedPassword]);
         res.status(201).json({ message: 'Utilizador registado com sucesso' });
         }
         catch (error) {
