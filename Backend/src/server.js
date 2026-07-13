@@ -1,11 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path'); 
 
 const { port, corsOrigin } = require('../config/env');
 const db = require('../config/db');
 
-// IMPORTAÇÃO DAS ROTAS 
-const cantidaturaRoutes = require('./routes/candidaturaRoutes');
+// IMPORTAÇÃO DAS ROTAS
+const candidaturaRoutes = require('./routes/candidaturaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const documentoRoutes = require('./routes/documentoRoutes'); 
 const adminRoutes = require('./routes/adminRoutes'); 
@@ -16,9 +17,12 @@ const app = express();
 app.use(cors({ origin: corsOrigin === '*' ? true : corsOrigin }));
 app.use(express.json());
 
-// ATIVAÇÃO DOS ENDPOINTS DA API 
+//Torna a pasta de uploads pública e acessível por URL
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// ATIVAÇÃO DOS ENDPOINTS DA API (Pluralizado candidaturas para convenção REST)
 app.use('/api/auth', authRoutes);
-app.use('/api/candidatura', cantidaturaRoutes);
+app.use('/api/candidaturas', candidaturaRoutes);
 app.use('/api/documentos', documentoRoutes);
 app.use('/api/admin', adminRoutes);
 

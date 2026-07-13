@@ -18,10 +18,7 @@ router.post(
     { name: 'IRS', maxCount: 1 },
     { name: 'Comprovativos_Rendimento_Anuais', maxCount: 1 }
   ]), 
-  documentoController.importarDocumentos
+  documentoController.importarDocumento
 );
-
-module.exports = router;
-
 
 module.exports = router;

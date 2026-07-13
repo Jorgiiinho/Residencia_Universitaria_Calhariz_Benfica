@@ -1,35 +1,65 @@
-const db = require('../config/db');
+const db = require('../../config/db');
 
-exports.submeterCandidatura = async (req, res) => {
+// SUBMETER CANDIDATURA (Etapa 1: Dados Pessoais, Académicos e Agregado)
+exports.submeterCandidatura = async (asyncReq, res) => {
   const connection = await db.getConnection();
 
   try {
     await connection.beginTransaction();
 
+    // 🛡️ Segurança: O id do utilizador vem encriptado do Token JWT (req.userId) 
+    // e não do corpo do formulário, evitando que um aluno altere dados de outro.
+    const user_id = asyncReq.userId; 
+
+    // Extraímos os novos campos que movemos para a tabela candidato
     const {
-      user_id, // O React envia apenas o ID do utilizador logado
+      data_nascimento,
+      num_cc,
+      nif,
+      morada,
+      codigo_postal,
+      telefone,
       instituicao_1,
       instituicao_2,
       instituicao_3,
       curso,
       ano_letivo,
       agregado_familiar
-    } = req.body;
+    } = asyncReq.body;
 
-    // Validação preventiva
-    if (!user_id || !instituicao_1 || !curso || !ano_letivo) {
+    // Validação preventiva atualizada com todos os novos campos obrigatórios
+    if (
+      !user_id || 
+      !data_nascimento || 
+      !num_cc || 
+      !nif || 
+      !morada || 
+      !codigo_postal || 
+      !telefone || 
+      !instituicao_1 || 
+      !curso || 
+      !ano_letivo
+    ) {
       await connection.rollback();
-      return res.status(400).json({ error: "Por favor, preencha os dados académicos obrigatórios." });
+      return res.status(400).json({ ok: false, error: "Por favor, preencha todos os dados pessoais e académicos obrigatórios." });
     }
 
-    // INSERIR NA TABELA 'CANDIDATO'
+    // INSERIR NA TABELA 'CANDIDATO' (Query reestruturada com os novos campos civis)
     const sqlCandidato = `
-      INSERT INTO candidato (user_id, instituicao_1, instituicao_2, instituicao_3, curso, ano_letivo)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO candidato (
+        user_id, data_nascimento, num_cc, nif, morada, codigo_postal, telefone, 
+        instituicao_1, instituicao_2, instituicao_3, curso, ano_letivo, estado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')
     `;
     
     const [resultadoCandidato] = await connection.query(sqlCandidato, [
       user_id,
+      data_nascimento,
+      num_cc,
+      nif,
+      morada,
+      codigo_postal,
+      telefone,
       instituicao_1,
       instituicao_2 || null,
       instituicao_3 || null,
@@ -65,15 +95,37 @@ exports.submeterCandidatura = async (req, res) => {
     
     return res.status(201).json({ 
       ok: true, 
-      mensagem: "Dados académicos e agregado familiar guardados com sucesso!", 
+      mensagem: "Dados pessoais, académicos e agregado familiar guardados com sucesso!", 
       candidatoId 
     });
 
   } catch (error) {
     await connection.rollback();
     console.error("Erro ao submeter candidatura:", error);
-    return res.status(500).json({ error: "Erro interno ao processar a candidatura.", detalhe: error.message });
+    return res.status(500).json({ ok: false, error: "Erro interno ao processar a candidatura.", detalhe: error.message });
   } finally {
     connection.release();
+  }
+};
+
+//BUSCAR MINHA CANDIDATURA 
+exports.obterMinhaCandidatura = async (req, res) => {
+  try {
+    const user_id = req.userId; // Extraído de forma segura do Token JWT
+
+    const querySQL = 'SELECT * FROM candidato WHERE user_id = ?';
+    const [rows] = await db.query(querySQL, [user_id]);
+
+    if (rows.length === 0) {
+      // Se não houver linha, devolve candidato como null 
+      return res.status(200).json({ ok: true, candidatura: null });
+    }
+
+    // Se houver, devolve o registo 
+    return res.status(200).json({ ok: true, candidatura: rows[0] });
+
+  } catch (error) {
+    console.error('Erro ao obter a candidatura do utilizador:', error);
+    return res.status(500).json({ ok: false, error: 'Erro interno ao verificar o estado do seu processo.' });
   }
 };

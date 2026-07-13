@@ -1,0 +1,69 @@
+import { createContext, useState, useEffect } from "react";
+import api from "../services/api";
+
+export const AuthContext = createContext();
+
+// 🛡️ Função Protetora para ler o localStorage sem quebrar o site
+const obterUtilizadorInicial = () => {
+  const usuarioGuardado = localStorage.getItem('user');
+
+  if (!usuarioGuardado || usuarioGuardado === 'undefined') {
+    return null;
+  }
+
+  try {
+    return JSON.parse(usuarioGuardado);
+  } catch (error) {
+    console.error("Erro ao ler o utilizador do localStorage:", error);
+    return null;
+  }
+};
+
+export function AuthProvider({ children }) {
+  // Inicialização síncrona segura no topo do componente
+  const [user, setUser] = useState(obterUtilizadorInicial);
+  const [token, setToken] = useState(() => localStorage.getItem("token") || null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
+  const login = async (email, password) => {
+    try {
+      const response = await api.post("/auth/login", { email, password });
+
+      if (response.data.ok) {
+        const tokenRecebido = response.data.token;
+        const dadosUser = response.data.user;
+
+        localStorage.setItem("token", tokenRecebido);
+        localStorage.setItem("user", JSON.stringify(dadosUser));
+
+        setToken(tokenRecebido);
+        setUser(dadosUser);
+
+        return { sucess: true, tipo: dadosUser.tipo };
+      }
+    } catch (error) {
+      console.error("Erro ao fazer login:", error);
+      return {
+        sucess: false,
+        message: error.response?.data?.error || "Credenciais inválidas ou erro no servidor."
+      };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, token, setUser, setToken, login, logout, authenticated: !!token, loading }}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
+}

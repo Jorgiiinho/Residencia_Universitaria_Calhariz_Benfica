@@ -14,7 +14,7 @@
       "port": 4000,
       "driver": "TiDB",
       "name": "Residencia-Cloud",
-      "database": "sys",
+      "database": "mydb",
       "username": "46a3JDzZ5oxfgpT.root",
       "password": "7ziYJw8gelKC4dEn"
     }

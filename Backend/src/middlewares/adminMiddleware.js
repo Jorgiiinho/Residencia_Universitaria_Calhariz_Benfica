@@ -1,6 +1,10 @@
 module.exports = (req, res, next) => {
-    if(!req.user || req.user.isAdmin !== 'admin'){
-        return res.status(401).json({error:"Acesso negado: Token não fornecido"});
-    }
-    return next();
-}
+  // Verifica o 'tipo' injetado pelo authMiddleware
+  if (!req.user || req.user.tipo !== 'admin') {
+    return res.status(403).json({ 
+      error: "Acesso negado: Esta área é exclusiva para funcionários administrativos." 
+    });
+  }
+  
+  return next();
+};

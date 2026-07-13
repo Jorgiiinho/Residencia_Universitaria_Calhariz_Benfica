@@ -2,10 +2,10 @@
   "name": "residencia_universitaria_calhariz_benfica",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.js", 
   "scripts": {
-    "start:backend": "node Backend/server.js/index.js",
-    "check:backend": "node --check Backend/config/env.js && node --check Backend/server.js/index.js",
+    "start:backend": "node backend/src/server.js",
+    "check:backend": "node --check backend/src/server.js && node --check backend/config/env.js && node --check backend/config/db.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

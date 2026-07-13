@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "start:backend": "node src/server.js",
+    "check:backend": "node --check src/server.js"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3",
