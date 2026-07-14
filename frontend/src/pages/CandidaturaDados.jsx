@@ -1,166 +1,446 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { useEffect, useMemo, useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { PublicLayout } from "../components/PublicLayout"; 
+import { AuthContext } from "../context/AuthContext";
+import api from "../services/api";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Trash2, Check } from "lucide-react";
+
+const KINSHIPS = ["Pai", "Mãe", "Irmão", "Irmã", "Avô/Á", "Tio/A", "Outro"];
+
+// Tradução Integrada para a Página de Dados
+const traducoesDados = {
+  pt: {
+    birthdate: "Data de Nascimento",
+    cc_number: "Cartão de Cidadão",
+    nif: "NIF",
+    phone: "Telemóvel",
+    address: "Morada Completa",
+    postal_code: "Código Postal",
+    city: "Cidade / Localidade",
+    institution: "Instituição de Ensino Superior",
+    course: "Curso",
+    academic_year: "Ano Curricular",
+    add_member: "Adicionar Membro",
+    full_name: "Nome Completo",
+    kinship: "Grau de Parentesco",
+    back: "Voltar ao Painel",
+    save_continue: "Gravar e Continuar"
+  },
+  en: {
+    birthdate: "Birthdate",
+    cc_number: "Citizen Card Number",
+    nif: "Tax ID (NIF)",
+    phone: "Phone Number",
+    address: "Full Address",
+    postal_code: "Postal Code",
+    city: "City",
+    institution: "Higher Education Institution",
+    course: "Course",
+    academic_year: "Academic Year",
+    add_member: "Add Member",
+    full_name: "Full Name",
+    kinship: "Kinship Relation",
+    back: "Back to Dashboard",
+    save_continue: "Save and Continue"
+  }
+};
 
 export default function CandidaturaDados() {
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   
-  // Controla em que passo o aluno está (1 = Pessoais, 2 = Académicos)
-  const [passo, setPasso] = useState(1);
-  
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [lang] = useState("pt"); // Língua padrão
+  const t = (key) => traducoesDados[lang]?.[key] || key;
 
-  // Estado com TODOS os teus campos exatos do Backend
-  const [formData, setFormData] = useState({
-    data_nascimento: '',
-    num_cc: '',
-    nif: '',
-    morada: '',
-    codigo_postal: '',
-    telefone: '',
-    instituicao_1: '',
-    instituicao_2: '',
-    instituicao_3: '',
-    curso: '',
-    ano_letivo: '2026/2027' // Padrão sugerido, mas editável
+  const [personal, setPersonal] = useState({
+    birthdate: "",
+    ccNumber: "",
+    nif: "",
+    phone: "",
+    address: "",
+    postalCode: "",
+    city: "",
+    institution: "",
+    institutionAlt2: "",
+    institutionAlt3: "",
+    course: "",
+    academicYear: ""
   });
+  const [family, setFamily] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  // Proteger Rota
+  useEffect(() => {
+    if (!user) navigate("/login");
+  }, [user, navigate]);
+
+  //Tenta ler candidatura existente do aluno
+  useEffect(() => {
+    const carregarCandidaturaExistente = async () => {
+      try {
+        const response = await api.get("/candidatura/minha");
+        if (response.data && response.data.candidatura) {
+          const app = response.data.candidatura;
+          setPersonal({
+            birthdate: app.data_nascimento ? app.data_nascimento.substring(0, 10) : "",
+            ccNumber: app.num_cc || "",
+            nif: app.nif || "",
+            phone: app.telefone || "",
+            address: app.morada || "",
+            postalCode: app.codigo_postal || "",
+            city: app.cidade || "",
+            institution: app.instituicao_1 || "",
+            institutionAlt2: app.instituicao_2 || "",
+            institutionAlt3: app.instituicao_3 || "",
+            course: app.curso || "",
+            academicYear: app.ano_letivo || ""
+          });
+          setFamily(response.data.familia || []);
+        }
+      } catch (err) {
+        // Se der 404 significa que é uma candidatura nova, não há problema nenhum!
+        if (err.response?.status !== 404) {
+          console.error("Erro a carregar candidatura:", err);
+          setError("Erro ao carregar dados existentes do servidor.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) carregarCandidaturaExistente();
+  }, [user]);
+
+  const setP = (k, v) => setPersonal((p) => ({ ...p, [k]: v }));
+
+  const formatPostal = (v) => {
+    const d = v.replace(/\D/g, "").slice(0, 7);
+    if (d.length <= 4) return d;
+    return `${d.slice(0, 4)}-${d.slice(4)}`;
   };
 
-  // Função para avançar para o Passo 2 (Valida apenas o Passo 1 localmente)
-  const avancarPasso = (e) => {
-    e.preventDefault();
-    setError('');
-    setPasso(2);
+  const addMember = () => {
+    setFamily((f) => [
+      ...f,
+      { id: `m-${Date.now()}`, nome_completo: "", nif: "", telefone: "", parentesco: "Outro" },
+    ]);
   };
 
-  // Função final que envia tudo reunido para o teu Backend
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  const updateMember = (id, patch) => {
+    setFamily((f) => f.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  };
 
+  const removeMember = (id) => setFamily((f) => f.filter((m) => m.id !== id));
+
+  // Gravar candidatura
+  const submit = async () => {
     try {
-      // Dispara o POST para a tua rota de candidaturas
-      const response = await api.post('/candidatura', formData);
+      setError("");
+      // Mapeia os dados do formulário de volta para os campos exatos do teu Backend
+      const payload = {
+        data_nascimento: personal.birthdate,
+        num_cc: personal.ccNumber,
+        nif: personal.nif,
+        morada: personal.address,
+        codigo_postal: personal.postalCode,
+        telefone: personal.phone,
+        cidade: personal.city,
+        instituicao_1: personal.institution,
+        instituicao_2: personal.institutionAlt2 || null,
+        instituicao_3: personal.institutionAlt3 || null,
+        curso: personal.course,
+        ano_letivo: personal.academicYear,
+        agregado: family // Envia os membros do agregado familiar associados
+      };
+
+      const response = await api.post("/candidatura", payload);
 
       if (response.data.ok) {
-        // 🌟 DAQUI ENVIAMOS DIRETO PARA OS DOCUMENTOS CONFORME PEDISTE!
-        navigate('/candidatura/documentos');
+        alert("Dados guardados com sucesso!");
+        navigate("/candidatura/documentos");
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Erro ao guardar a candidatura. Tente novamente.');
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.error || "Ocorreu um erro ao gravar a sua candidatura.");
     }
   };
 
+  const progress = useMemo(() => {
+    const required = ["birthdate", "ccNumber", "nif", "address", "postalCode", "phone", "institution", "course", "academicYear"];
+    const filled = required.filter((k) => !!personal[k]).length;
+    return Math.round((filled / required.length) * 100);
+  }, [personal]);
+
+  if (loading) return <div className="p-8 text-center">A verificar candidatura...</div>;
+
   return (
-    <div style={{ maxWidth: '600px', margin: '40px auto', padding: '25px', fontFamily: 'Arial, sans-serif', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-      
-      <h2 style={{ color: '#0056b3', margin: '0 0 5px 0' }}>Ficha de Candidatura</h2>
-      <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-        Passo {passo} de 2: {passo === 1 ? 'Dados Pessoais' : 'Dados Académicos'}
-      </p>
+    <PublicLayout>
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <WizardHeader current={1} progress={progress} />
 
-      {/* Indicador visual simples de passos */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
-        <div style={{ flex: 1, height: '6px', backgroundColor: '#0056b3', borderRadius: '3px' }}></div>
-        <div style={{ flex: 1, height: '6px', backgroundColor: passo === 2 ? '#0056b3' : '#eee', borderRadius: '3px', transition: '0.3s' }}></div>
+        {error && <div className="mt-4 text-red-600 font-bold">⚠️ {error}</div>}
+
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <h2 className="font-display text-lg font-bold text-deep">
+              1. Dados pessoais e académicos
+            </h2>
+            <div className="gov-gold-rule mt-2 mb-6 w-12" />
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t("birthdate")}>
+                <Input
+                  type="date"
+                  value={personal.birthdate ?? ""}
+                  onChange={(e) => setP("birthdate", e.target.value)}
+                />
+              </Field>
+              <Field label={t("cc_number")}>
+                <Input
+                  value={personal.ccNumber ?? ""}
+                  onChange={(e) => setP("ccNumber", e.target.value)}
+                />
+              </Field>
+              <Field label={t("nif")}>
+                <Input
+                  inputMode="numeric"
+                  maxLength={9}
+                  value={personal.nif ?? ""}
+                  onChange={(e) => setP("nif", e.target.value.replace(/\D/g, ""))}
+                />
+              </Field>
+              <Field label={t("phone")}>
+                <Input
+                  value={personal.phone ?? ""}
+                  onChange={(e) => setP("phone", e.target.value)}
+                />
+              </Field>
+              <Field label={t("address")} className="sm:col-span-2">
+                <Input
+                  value={personal.address ?? ""}
+                  onChange={(e) => setP("address", e.target.value)}
+                />
+              </Field>
+              <Field label={t("postal_code")}>
+                <Input
+                  placeholder="0000-000"
+                  value={personal.postalCode ?? ""}
+                  onChange={(e) => setP("postalCode", formatPostal(e.target.value))}
+                />
+              </Field>
+              <Field label={t("city")}>
+                <Input
+                  value={personal.city ?? ""}
+                  onChange={(e) => setP("city", e.target.value)}
+                />
+              </Field>
+            </div>
+
+            <h3 className="mt-8 font-display text-base font-bold text-deep">
+              Ensino Superior
+            </h3>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <Field label={`${t("institution")} — 1ª preferência`}>
+                <Input
+                  value={personal.institution ?? ""}
+                  onChange={(e) => setP("institution", e.target.value)}
+                />
+              </Field>
+              <Field label="2ª preferência">
+                <Input
+                  value={personal.institutionAlt2 ?? ""}
+                  onChange={(e) => setP("institutionAlt2", e.target.value)}
+                />
+              </Field>
+              <Field label="3ª preferência">
+                <Input
+                  value={personal.institutionAlt3 ?? ""}
+                  onChange={(e) => setP("institutionAlt3", e.target.value)}
+                />
+              </Field>
+              <Field label={t("course")} className="sm:col-span-2">
+                <Input
+                  value={personal.course ?? ""}
+                  onChange={(e) => setP("course", e.target.value)}
+                />
+              </Field>
+              <Field label={t("academic_year")}>
+                <Select value={personal.academicYear ?? ""} onValueChange={(v) => setP("academicYear", v)}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    {["1º ano", "2º ano", "3º ano", "4º ano", "5º ano", "Mestrado"].map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Agregado Familiar */}
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="font-display text-lg font-bold text-deep">
+                  Agregado familiar
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Adicione todos os membros que compõem o seu agregado.
+                </p>
+              </div>
+              <Button onClick={addMember} variant="outline" className="gap-2">
+                <Plus className="h-4 w-4" /> {t("add_member")}
+              </Button>
+            </div>
+            <div className="gov-gold-rule mt-2 mb-4 w-12" />
+
+            <div className="overflow-x-auto rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("full_name")}</TableHead>
+                    <TableHead>{t("nif")}</TableHead>
+                    <TableHead>{t("phone")}</TableHead>
+                    <TableHead>{t("kinship")}</TableHead>
+                    <TableHead className="w-14"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {family.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                        Nenhum membro adicionado ainda.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {family.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <Input value={m.nome_completo || m.fullName} onChange={(e) => updateMember(m.id, { nome_completo: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          inputMode="numeric"
+                          maxLength={9}
+                          value={m.nif}
+                          onChange={(e) => updateMember(m.id, { nif: e.target.value.replace(/\D/g, "") })}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input value={m.telefone || m.phone} onChange={(e) => updateMember(m.id, { telefone: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Select value={m.parentesco || m.kinship} onValueChange={(v) => updateMember(m.id, { parentesco: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {KINSHIPS.map((k) => (
+                              <SelectItem key={k} value={k}>{k}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Button size="icon" variant="ghost" onClick={() => removeMember(m.id)}>
+                          <Trash2 className="h-4 w-4 text-status-danger" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="mt-6 flex justify-between">
+          <Button variant="outline" onClick={() => navigate("/painel")}>
+            {t("back")}
+          </Button>
+          <Button size="lg" onClick={submit} className="gap-2">
+            <Check className="h-4 w-4" /> {t("save_continue")}
+          </Button>
+        </div>
       </div>
+    </PublicLayout>
+  );
+}
 
-      {error && <div style={{ color: 'red', marginBottom: '20px', fontWeight: 'bold' }}>⚠️ {error}</div>}
+function Field({ label, children, className }) {
+  return (
+    <div className={`space-y-2 ${className ?? ""}`}>
+      <Label className="text-xs uppercase tracking-wider text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
 
-      {/* 👤 PASSO 1: DADOS PESSOAIS */}
-      {passo === 1 && (
-        <form onSubmit={avancarPasso} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Data de Nascimento:</label>
-            <input type="date" name="data_nascimento" value={formData.data_nascimento} onChange={handleChange} required style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-            <div>
-              <label style={{ fontWeight: 'bold' }}>Nº Cartão de Cidadão:</label>
-              <input type="text" name="num_cc" maxLength="9" value={formData.num_cc} onChange={handleChange} required placeholder="9 dígitos" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+export function WizardHeader({ current, progress }) {
+  const steps = ["Dados", "Documentos", "Revisão"];
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-widest text-primary">
+        Passo {current} de 3
+      </div>
+      <h1 className="mt-1 font-display text-2xl font-bold text-deep sm:text-3xl">
+        Nova candidatura
+      </h1>
+      <div className="gov-gold-rule mt-2 mb-6 w-16" />
+      <div className="grid grid-cols-3 gap-2">
+        {steps.map((s, i) => {
+          const idx = i + 1;
+          const done = idx < current;
+          const active = idx === current;
+          return (
+            <div key={s} className="flex items-center gap-3">
+              <div
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 font-display text-sm font-bold ${
+                  done
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : active
+                      ? "border-primary bg-background text-primary"
+                      : "border-border bg-background text-muted-foreground"
+                }`}
+              >
+                {done ? <Check className="h-4 w-4" /> : idx}
+              </div>
+              <div className="min-w-0">
+                <div className={`truncate text-sm font-medium ${active || done ? "text-foreground" : "text-muted-foreground"}`}>
+                  {s}
+                </div>
+              </div>
             </div>
-            <div>
-              <label style={{ fontWeight: 'bold' }}>NIF:</label>
-              <input type="text" name="nif" maxLength="9" value={formData.nif} onChange={handleChange} required placeholder="9 dígitos" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Contacto Telefónico:</label>
-            <input type="tel" name="telefone" maxLength="9" value={formData.telefone} onChange={handleChange} required placeholder="Ex: 9xxxxxxxx" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Morada Completa:</label>
-            <input type="text" name="morada" value={formData.morada} onChange={handleChange} required placeholder="Rua, Porta, Andar..." style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Código Postal:</label>
-            <input type="text" name="codigo_postal" maxLength="7" value={formData.codigo_postal} onChange={handleChange} required placeholder="Ex: 9350100" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
-            <button type="button" onClick={() => navigate('/painel')} style={{ padding: '10px 20px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-              Voltar ao Painel
-            </button>
-            <button type="submit" style={{ padding: '10px 25px', background: '#0056b3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-              Seguinte ➡️
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* 🎓 PASSO 2: DADOS ACADÉMICOS */}
-      {passo === 2 && (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Ano Letivo:</label>
-            <input type="text" name="ano_letivo" value={formData.ano_letivo} onChange={handleChange} required style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Curso Universitário:</label>
-            <input type="text" name="curso" value={formData.curso} onChange={handleChange} required placeholder="Ex: Direito, Medicina, Gestão" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Instituição de Ensino (Opção 1 - Principal):</label>
-            <input type="text" name="instituicao_1" value={formData.instituicao_1} onChange={handleChange} required placeholder="Ex: Universidade de Lisboa" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Instituição de Ensino (Opção 2 - Alternativa):</label>
-            <input type="text" name="instituicao_2" value={formData.instituicao_2} onChange={handleChange} placeholder="Opcional" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div>
-            <label style={{ fontWeight: 'bold' }}>Instituição de Ensino (Opção 3 - Alternativa):</label>
-            <input type="text" name="instituicao_3" value={formData.instituicao_3} onChange={handleChange} placeholder="Opcional" style={{ width: '100%', padding: '10px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
-            <button type="button" onClick={() => setPasso(1)} style={{ padding: '10px 20px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-              ⬅️ Anterior
-            </button>
-            <button type="submit" disabled={loading} style={{ padding: '10px 30px', background: '#198754', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {loading ? 'A guardar...' : 'Gravar e Avançar ➡️'}
-            </button>
-          </div>
-        </form>
-      )}
-
+          );
+        })}
+      </div>
+      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progress ?? ((current - 1) / 3) * 100 + 15}%` }}
+        />
+      </div>
     </div>
   );
 }

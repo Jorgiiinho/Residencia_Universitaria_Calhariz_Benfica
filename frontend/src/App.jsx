@@ -3,10 +3,21 @@ import { AuthProvider } from './context/AuthContext';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 
+// 🔓 Páginas Públicas, de Informação e Autenticação
+import Home from './pages/Home';         // 🌟 LANDING PAGE PÚBLICA CONECTADA!
 import Register from './pages/Register';
 import Login from './pages/Login';
+
+// 🎓 Páginas da Área do Aluno (Candidato)
 import Painel from './pages/PainelAluno';
 import CandidaturaDados from './pages/CandidaturaDados';
+import CandidaturaDocumentos from './pages/CandidaturaDocumentos';
+import CandidaturaCorrigir from './pages/CandidaturaCorrigir';
+
+// 🏛️ Páginas da Área da Câmara Municipal (Administrador)
+import AdminDashboard from './pages/AdminDashboard';
+import DetalhesCandidatura from './pages/DetalhesCandidatura';
+import CriarFuncionario from './pages/CriarFuncionario';
 
 // Componente auxiliar para trancar rotas privadas 
 function PrivateRoute({ children, allowedType }) {
@@ -23,7 +34,11 @@ function PrivateRoute({ children, allowedType }) {
 
   // Se o contexto ainda estiver a ler o localStorage, espera e não redireciona já
   if (loading) {
-    return <div>A carregar sessão...</div>;
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-sm text-muted-foreground animate-pulse">
+        A carregar sessão...
+      </div>
+    );
   }
   
   if (!authenticated) {
@@ -33,7 +48,7 @@ function PrivateRoute({ children, allowedType }) {
   
   if (allowedType && user?.tipo !== allowedType) {
     console.log(`❌ [PrivateRoute] Expulso: Tipo incorreto. Esperado: "${allowedType}", mas o user tem: "${user?.tipo}".`);
-    return <Navigate to="/login" />; // Corrigido de / para /login para evitar a armadilha do *
+    return <Navigate to="/login" />;
   }
   
   console.log("✅ [PrivateRoute] Acesso Autorizado! A renderizar o ecrã.");
@@ -45,22 +60,51 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Rotas Públicas */}
+          {/* 🔓 Rotas Públicas */}
+          <Route path="/" element={<Home />} /> 
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
 
-          {/* Rotas Protegidas do Aluno (Candidato) */}
-          <Route path="/painel" element={<PrivateRoute allowedType="candidato"><Painel /></PrivateRoute>} />
-          <Route path="/candidatura/dados" element={<PrivateRoute allowedType="candidato"><CandidaturaDados /></PrivateRoute>} />
-          <Route path="/candidatura/documentos" element={<PrivateRoute allowedType="candidato"><div><h3>Upload de Ficheiros</h3></div></PrivateRoute>} />
-          <Route path="/candidatura/corrigir" element={<PrivateRoute allowedType="candidato"><div><h3>Ecrã de Correção Urgente</h3></div></PrivateRoute>} />
+          {/* 🎓 Rotas Protegidas do Aluno (Candidato) */}
+          <Route path="/painel" element={
+            <PrivateRoute allowedType="candidato">
+              <Painel />
+            </PrivateRoute>
+          } />
+          <Route path="/candidatura/dados" element={
+            <PrivateRoute allowedType="candidato">
+              <CandidaturaDados />
+            </PrivateRoute>
+          } />
+          <Route path="/candidatura/documentos" element={
+            <PrivateRoute allowedType="candidato">
+              <CandidaturaDocumentos />
+            </PrivateRoute>
+          } />
+          <Route path="/candidatura/corrigir" element={
+            <PrivateRoute allowedType="candidato">
+              <CandidaturaCorrigir />
+            </PrivateRoute>
+          } />
 
-          {/* Rotas Protegidas da Câmara Municipal (Admin) */}
-          <Route path="/admin/dashboard" element={<PrivateRoute allowedType="admin"><div><h3>Dashboard do Admin</h3></div></PrivateRoute>} />
-          <Route path="/admin/candidatura/:id" element={<PrivateRoute allowedType="admin"><div><h3>Dossiê do Aluno</h3></div></PrivateRoute>} />
-          <Route path="/admin/criar-funcionario" element={<PrivateRoute allowedType="admin"><div><h3>Registar Staff</h3></div></PrivateRoute>} />
+          {/* 🏛️ Rotas Protegidas da Câmara Municipal (Admin) */}
+          <Route path="/admin/dashboard" element={
+            <PrivateRoute allowedType="admin">
+              <AdminDashboard />
+            </PrivateRoute>
+          } />
+          <Route path="/admin/candidatura/:id" element={
+            <PrivateRoute allowedType="admin">
+              <DetalhesCandidatura />
+            </PrivateRoute>
+          } />
+          <Route path="/admin/criar-funcionario" element={
+            <PrivateRoute allowedType="admin">
+              <CriarFuncionario />
+            </PrivateRoute>
+          } />
 
-          {/* Redirecionamento padrão caso a rota não exista */}
+          {/* 🔄 Redirecionamento padrão caso a rota não exista */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </AuthProvider>

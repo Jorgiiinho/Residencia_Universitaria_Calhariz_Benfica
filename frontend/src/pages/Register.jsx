@@ -1,95 +1,121 @@
-import { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { AuthContext } from '../context/AuthContext';
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { PublicLayout } from "../components/PublicLayout";
+import { AuthContext } from "../context/AuthContext";
+import api from "../services/api";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Register() {
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
-  
-  const { login } = useContext(AuthContext); 
 
-  const [formData, setFormData] = useState({
-    nome: '',
-    apelido: '',
-    email: '',
-    password: '',
-  });
+  const [firstName, setFirst] = useState("");
+  const [lastName, setLast] = useState("");
+  const [email, setEmail] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [pwd2, setPwd2] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError(null);
+
+    if (pwd.length < 6) {
+      setError("A palavra-passe deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (pwd !== pwd2) {
+      setError("As palavras-passe não coincidem.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      // 1. Faz o registo do aluno normalmente no Backend
-      const response = await api.post('/auth/register', formData);
+      // Envia o registo para o Backend
+      const response = await api.post("/auth/register", {
+        nome: firstName,
+        apelido: lastName,
+        email: email,
+        password: pwd
+      });
 
       if (response.data.ok) {
-        setSuccess('Conta criada com sucesso! A iniciar sessão...');
-
-        // Chamamos a função login 
-        const resultadoLogin = await login(formData.email, formData.password);
-
-        if (resultadoLogin.sucess) {
-          // Se o login correu bem (o token já está no sítio e guardado), avançamos sem espirrar!
-          navigate('/painel');
+        const log = await login(email, pwd);
+        if (log.sucess) {
+          navigate("/painel");
         } else {
-          // Caso o login automático falhe por algum motivo raro, avisa o aluno
-          setError('Conta criada, mas ocorreu um erro ao entrar automaticamente. Por favor, tente fazer login.');
+          navigate("/login");
         }
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Erro ao efetuar o registo. Tente novamente.');
+      setError(err.response?.data?.error || "Erro ao efetuar o registo. Tente novamente.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '60px auto', padding: '20px', fontFamily: 'Arial, sans-serif', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0px 4px 10px rgba(0,0,0,0.05)' }}>
-      <h2 style={{ textAlign: 'center', color: '#0056b3' }}>Município da Ribeira Brava</h2>
-      <h4 style={{ textAlign: 'center', color: '#666', marginTop: '-10px' }}>Portal de Inscrição - Residência de Benfica</h4>
-      
-      <h3 style={{ marginTop: '25px', borderBottom: '2px solid #0056b3', paddingBottom: '5px' }}>Criar Conta</h3>
-
-      {error && <div style={{ color: 'red', marginBottom: '15px', fontWeight: 'bold' }}>⚠️ {error}</div>}
-      {success && <div style={{ color: 'green', marginBottom: '15px', fontWeight: 'bold' }}>✅ {success}</div>}
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div>
-          <label style={{ fontWeight: 'bold' }}>Nome:</label>
-          <input type="text" name="nome" value={formData.nome} onChange={handleChange} required placeholder="Ex: João Pedro" style={{ width: '100%', padding: '10px', marginTop: '5px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
-        </div>
-
-        <div>
-          <label style={{ fontWeight: 'bold' }}>Apelido:</label>
-          <input type="text" name="apelido" value={formData.apelido} onChange={handleChange} required placeholder="Ex: Costa Silva" style={{ width: '100%', padding: '10px', marginTop: '5px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
-        </div>
-
-        <div>
-          <label style={{ fontWeight: 'bold' }}>E-mail:</label>
-          <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="estudante@ribeirabrava.pt" style={{ width: '100%', padding: '10px', marginTop: '5px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
-        </div>
-
-        <div>
-          <label style={{ fontWeight: 'bold' }}>Palavra-passe:</label>
-          <input type="password" name="password" value={formData.password} onChange={handleChange} required placeholder="Defina a sua senha" style={{ width: '100%', padding: '10px', marginTop: '5px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #ccc' }} />
-        </div>
-
-        <button type="submit" style={{ padding: '12px', background: '#0056b3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', marginTop: '10px' }}>
-          Registar e Continuar
-        </button>
-      </form>
-
-      <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
-        Já tem uma conta? <span onClick={() => navigate('/login')} style={{ color: '#0056b3', textDecoration: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Faça login aqui</span>.
-      </p>
-    </div>
+    <PublicLayout>
+      <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12 sm:py-20">
+        <Card className="border-border/60 shadow-md">
+          <CardHeader className="space-y-1 pb-4 text-center">
+            <CardTitle className="font-display text-xl font-bold text-deep">
+              Criar Conta
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Registe-se para aceder ao portal de inscrição
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 pt-0">
+            <form onSubmit={submit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="fn">Nome</Label>
+                  <Input id="fn" required value={firstName} onChange={(e) => setFirst(e.target.value)} placeholder="Ex: João" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ln">Apelido</Label>
+                  <Input id="ln" required value={lastName} onChange={(e) => setLast(e.target.value)} placeholder="Ex: Silva" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="estudante@ribeirabrava.pt" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pwd">Palavra-passe</Label>
+                <Input id="pwd" type="password" required value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Mínimo 6 caracteres" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pwd2">Confirmar Palavra-passe</Label>
+                <Input id="pwd2" type="password" required value={pwd2} onChange={(e) => setPwd2(e.target.value)} placeholder="Repita a senha" />
+              </div>
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? "A registar..." : "Criar Conta e Continuar"}
+              </Button>
+            </form>
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              Já tem uma conta?{" "}
+              <Link to="/login" className="font-semibold text-primary hover:underline">
+                Inicie sessão aqui
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PublicLayout>
   );
 }
