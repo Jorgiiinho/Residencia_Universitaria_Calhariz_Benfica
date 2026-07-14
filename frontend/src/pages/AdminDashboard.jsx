@@ -4,9 +4,9 @@ import { AdminLayout, StatusBadge } from "../components/AdminLayout";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import {
   Table,
   TableBody,

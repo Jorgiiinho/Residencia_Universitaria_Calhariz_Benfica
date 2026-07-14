@@ -4,9 +4,9 @@ import { PublicLayout } from "../components/PublicLayout";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { AlertTriangle, UploadCloud, CheckCircle2, RefreshCcw } from "lucide-react";
 
 const DOC_LABELS = {

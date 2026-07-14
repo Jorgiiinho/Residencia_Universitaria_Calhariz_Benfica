@@ -2,7 +2,7 @@
   "name": "residencia_universitaria_calhariz_benfica",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js", 
+  "main": "index.js",
   "scripts": {
     "start:backend": "node backend/src/server.js",
     "check:backend": "node --check backend/src/server.js && node --check backend/config/env.js && node --check backend/config/db.js",
@@ -21,9 +21,20 @@
   "homepage": "https://github.com/Jorgiiinho/Residencia_Universitaria_Calhariz_Benfica#readme",
   "dependencies": {
     "@dotenvx/dotenvx": "^2.3.1",
+    "@radix-ui/react-dialog": "^1.1.19",
+    "@radix-ui/react-label": "^2.1.11",
+    "@radix-ui/react-select": "^2.3.3",
+    "@radix-ui/react-separator": "^1.1.11",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@radix-ui/react-tabs": "^1.1.17",
+    "@radix-ui/react-tooltip": "^1.2.12",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mysql2": "^3.22.6"
+    "lucide-react": "^1.24.0",
+    "mysql2": "^3.22.6",
+    "tailwind-merge": "^3.6.0"
   }
 }

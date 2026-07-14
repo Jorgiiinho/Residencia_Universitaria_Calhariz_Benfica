@@ -4,10 +4,10 @@ import { PublicLayout } from "../components/PublicLayout";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Card, CardContent } from "@/components/ui/Card";
 import {
   Select,
   SelectContent,

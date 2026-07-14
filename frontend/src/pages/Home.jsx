@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { PublicLayout } from "../components/PublicLayout";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { GraduationCap, ShieldCheck, FileCheck2, ArrowRight } from "lucide-react";
 
 export default function Home() {

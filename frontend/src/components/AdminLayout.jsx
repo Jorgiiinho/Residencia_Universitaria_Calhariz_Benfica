@@ -15,7 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarFooter,
-} from "./ui/sidebar";
+} from "./ui/Sidebar";
 import { LayoutDashboard, Users, UserPlus, LogOut, Globe } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -145,6 +145,10 @@ export function AdminShell({ title, children }) {
       </div>
     </SidebarProvider>
   );
+}
+
+export function AdminLayout({ title, children }) {
+  return <AdminShell title={title}>{children}</AdminShell>;
 }
 
 export function StatusBadge({ tone, children }) {

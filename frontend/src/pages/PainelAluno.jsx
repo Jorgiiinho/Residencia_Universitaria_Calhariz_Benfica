@@ -4,8 +4,8 @@ import { PublicLayout } from "../components/PublicLayout";
 import { StatusBadge } from "../components/AdminLayout";
 import { AuthContext } from "../context/AuthContext";
 import api from "../services/api";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import { FilePlus, AlertTriangle, CheckCircle2, Clock, FileCheck2, ArrowRight } from "lucide-react";
 
 export default function PainelAluno() {

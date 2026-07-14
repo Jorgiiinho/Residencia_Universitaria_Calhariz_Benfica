@@ -3,18 +3,18 @@ import { AuthProvider } from './context/AuthContext';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
 
-// 🔓 Páginas Públicas, de Informação e Autenticação
-import Home from './pages/Home';         // 🌟 LANDING PAGE PÚBLICA CONECTADA!
+//  Páginas Públicas, de Informação e Autenticação
+import Home from './pages/Home';        
 import Register from './pages/Register';
 import Login from './pages/Login';
 
-// 🎓 Páginas da Área do Aluno (Candidato)
+// Páginas da Área do Aluno (Candidato)
 import Painel from './pages/PainelAluno';
 import CandidaturaDados from './pages/CandidaturaDados';
 import CandidaturaDocumentos from './pages/CandidaturaDocumentos';
 import CandidaturaCorrigir from './pages/CandidaturaCorrigir';
 
-// 🏛️ Páginas da Área da Câmara Municipal (Administrador)
+// Páginas da Área da Câmara Municipal (Administrador)
 import AdminDashboard from './pages/AdminDashboard';
 import DetalhesCandidatura from './pages/DetalhesCandidatura';
 import CriarFuncionario from './pages/CriarFuncionario';
@@ -87,7 +87,7 @@ function App() {
             </PrivateRoute>
           } />
 
-          {/* 🏛️ Rotas Protegidas da Câmara Municipal (Admin) */}
+          {/* Rotas Protegidas da Câmara Municipal (Admin) */}
           <Route path="/admin/dashboard" element={
             <PrivateRoute allowedType="admin">
               <AdminDashboard />
@@ -104,7 +104,7 @@ function App() {
             </PrivateRoute>
           } />
 
-          {/* 🔄 Redirecionamento padrão caso a rota não exista */}
+          {/* Redirecionamento padrão caso a rota não exista */}
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </AuthProvider>

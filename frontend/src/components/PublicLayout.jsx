@@ -1,7 +1,7 @@
 import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext"; // Ajusta o caminho se necessário!
-import { Button } from "./ui/button";
+import { Button } from "./ui/Button";
 import { Globe, LogOut, UserRound } from "lucide-react";
 import {
   DropdownMenu,
@@ -187,4 +187,8 @@ export function PublicShell({ children }) {
       <PublicFooter />
     </div>
   );
+}
+
+export function PublicLayout({ children }) {
+  return <PublicShell>{children}</PublicShell>;
 }
