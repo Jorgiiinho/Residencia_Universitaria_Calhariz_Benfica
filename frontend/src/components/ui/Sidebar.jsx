@@ -102,7 +102,7 @@ const SidebarProvider = React.forwardRef(
               ...style,
             }}
             className={cn(
-              "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=sidebar]]:bg-background",
+              "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=sidebar]:bg-background",
               className,
             )}
             ref={ref}
@@ -176,7 +176,7 @@ const Sidebar = React.forwardRef(
             "group-data-[collapsible=offcanvas]:w-0",
             "group-data-[side=right]:rotate-180",
             variant === "floating" || variant === "inset"
-              ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
+              ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
           )}
         />
@@ -184,12 +184,12 @@ const Sidebar = React.forwardRef(
           className={cn(
             "duration-200 fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) flex-col bg-sidebar transition-[left,right,width] ease-in-out md:flex",
             side === "left"
-              ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-              : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+              ? "left-0 group-data-[collapsible=offcanvas]:-left-(--sidebar-width)"
+              : "right-0 group-data-[collapsible=offcanvas]:-right-(--sidebar-width)",
             variant === "floating"
-              ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)] rounded-xl border border-sidebar-border shadow-sm"
+              ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)] rounded-xl border border-sidebar-border shadow-sm"
               : variant === "inset"
-                ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)] rounded-none border-r border-sidebar-border"
+                ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)] rounded-none border-r border-sidebar-border"
                 : "border-sidebar-border group-data-[side=left]:border-r group-data-[side=right]:border-l",
             className,
           )}
@@ -244,7 +244,7 @@ const SidebarRail = React.forwardRef(({ className, ...props }, ref) => {
       title="Toggle Sidebar"
       className={cn(
         "duration-200 absolute inset-y-0 z-20 hidden w-1.5 -translate-x-1/2 bg-transparent transition-all ease-in-out hover:bg-sidebar-border group-data-[side=left]:-right-3 group-data-[side=right]:-left-3 md:inline-block",
-        "after:absolute after:inset-y-0 after:left-1/2 after:w-[4px] after:-translate-x-1/2",
+        "after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2",
         "cursor-ew-resize",
         className,
       )}

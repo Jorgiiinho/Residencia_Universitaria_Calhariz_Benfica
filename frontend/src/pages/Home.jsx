@@ -32,19 +32,28 @@ export default function Home() {
               </Button>
             </div>
           </div>
-          <div className="hidden md:block relative">
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-primary/10 to-transparent" />
-            <div className="h-full w-full rounded-2xl border border-border/80 bg-muted/20 p-8 flex flex-col justify-between min-h-[320px]">
-              <div className="space-y-2">
-                <div className="font-display text-xl font-bold text-deep">Residência de Benfica</div>
-                <div className="text-xs uppercase tracking-wider text-gold font-semibold">Protocolo Municipal</div>
+          <div className="relative">
+            <div className="absolute -inset-4 rounded-2xl bg-linear-to-br from-primary/20 via-gold/20 to-transparent blur-2xl" />
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              <div className="gov-header-band px-6 py-4">
+                <div className="text-xs uppercase tracking-widest opacity-80">Processo</div>
+                <div className="font-display text-xl font-bold">Como candidatar-se</div>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Um apoio social estratégico e focado na promoção do sucesso académico dos jovens estudantes da Ribeira Brava em Lisboa.
-              </p>
-              <div className="text-xs text-muted-foreground/80">
-                Câmara Municipal da Ribeira Brava
-              </div>
+              <ol className="divide-y divide-border">
+                {[
+                  { n: 1, t: "Criar conta no portal com o seu email pessoal" },
+                  { n: 2, t: "Preencher os dados pessoais e o agregado familiar" },
+                  { n: 3, t: "Submeter os documentos comprovativos em PDF" },
+                  { n: 4, t: "Acompanhar o estado do processo online" },
+                ].map((s) => (
+                  <li key={s.n} className="flex items-start gap-4 px-6 py-4">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 font-display text-sm font-bold text-primary">
+                      {s.n}
+                    </div>
+                    <p className="pt-1 text-sm text-foreground">{s.t}</p>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </div>
