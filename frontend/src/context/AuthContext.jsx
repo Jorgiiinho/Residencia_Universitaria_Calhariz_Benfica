@@ -3,7 +3,7 @@ import api from "../services/api";
 
 export const AuthContext = createContext();
 
-// 🛡️ Função Protetora para ler o localStorage sem quebrar o site
+// Função Protetora para ler o localStorage sem quebrar o site
 const obterUtilizadorInicial = () => {
   const usuarioGuardado = localStorage.getItem('user');
 
@@ -20,7 +20,6 @@ const obterUtilizadorInicial = () => {
 };
 
 export function AuthProvider({ children }) {
-  // Inicialização síncrona segura no topo do componente
   const [user, setUser] = useState(obterUtilizadorInicial);
   const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +53,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // FUNÇÃO DE REGISTO CORRIGIDA E ADICIONADA
+  const register = async (dados) => {
+    try {
+      // Ajusta o endpoint '/auth/register' se o teu backend usar outro caminho
+      const response = await api.post("/auth/register", dados);
+
+      if (response.data.ok) {
+        return { ok: true };
+      } else {
+        return { ok: false, error: response.data.error || "Erro ao criar conta." };
+      }
+    } catch (error) {
+      console.error("Erro no registo:", error);
+      return { 
+        ok: false, 
+        error: error.response?.data?.error || "Serviço de registo indisponível." 
+      };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -62,7 +81,17 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, setUser, setToken, login, logout, authenticated: !!token, loading }}>
+    <AuthContext.Provider value={{ 
+        user, 
+        token, 
+        setUser, 
+        setToken, 
+        login, 
+        logout, 
+        register,
+        authenticated: !!token, 
+        loading 
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

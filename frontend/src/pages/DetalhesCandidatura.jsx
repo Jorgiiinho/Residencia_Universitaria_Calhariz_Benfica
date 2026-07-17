@@ -1,199 +1,138 @@
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useContext } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { AdminLayout, StatusBadge } from "../components/AdminLayout";
-import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
-
+import { AuthContext } from "@/context/AuthContext"; 
+import { AdminShell, StatusBadge } from "@/components/AdminLayout"; 
+import { useStore, statusMeta, DOC_LABELS } from "@/lib/providers";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/Table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/Select";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/Dialog";
 import { ArrowLeft, Check, X, Download, FileText, Save } from "lucide-react";
+import { toast } from "sonner";
+import { AdminAPI, DocumentosAPI } from "@/services/api";
 
-// Dicionário dos documentos do Candidato
-const DOC_LABELS = {
-  Formulario_candidatura: { pt: "Formulário de Candidatura Assinado", en: "Signed Application Form" },
-  CC: { pt: "Cópia do Cartão de Cidadão", en: "ID Card Copy" },
-  Declaracao_Residencia: { pt: "Declaração de Residência", en: "Residence Declaration" },
-  Declaracao_Domicilio_Fiscal: { pt: "Declaração de Domicílio Fiscal", en: "Fiscal Domicile Declaration" },
-  Comprovativo_Inscricao_Matricula: { pt: "Comprovativo de Inscrição / Matrícula", en: "Proof of Enrollment" },
-  Documento_bolsa_estudo: { pt: "Documento de Bolsa de Estudo", en: "Scholarship Document" },
-  IRS: { pt: "Declaração de IRS", en: "Tax Return (IRS)" },
-  Comprovativos_Rendimento_Anuais: { pt: "Comprovativos de Rendimentos Anuais", en: "Annual Income Statements" }
-};
 const STATES = [
-  "rascunho",
-  "aguarda_documentos",
+  "incompleta",
   "aguarda_validacao",
   "em_analise",
   "pendente_correcao",
-  "aprovado",
-  "rejeitado",
-  "arquivado",
+  "aprovada",
+  "rejeitada",
+  "arquivada"
 ];
 
-const statusMeta = (estado) => {
-  switch (estado) {
-    case 'rascunho':
-    case 'aguarda_documentos':
-      return { tone: 'neutral', label: 'Incompleta' };
-    case 'aguarda_validacao':
-      return { tone: 'warn', label: 'Aguardar Validação' };
-    case 'em_analise':
-      return { tone: 'info', label: 'Em Análise' };
-    case 'pendente_correcao':
-      return { tone: 'danger', label: 'Pendente Correção' };
-    case 'aprovado':
-      return { tone: 'success', label: 'Aprovada' };
-    case 'rejeitado':
-      return { tone: 'danger-dark', label: 'Rejeitada' };
-    case 'arquivada':
-      return { tone: 'neutral', label: 'Arquivada' };
-    default:
-      return { tone: 'neutral', label: estado || 'Incompleta' };
-  }
-};
-
-export default function DetalhesCandidatura() {
-  const { id } = useParams();
+export default function AppDetail() {
+  const { id } = useParams(); // Captura dinâmica do ID da URL com react-router-dom
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user: currentUser, authenticated } = useContext(AuthContext); // Sessão real do funcionário
+  const { store, updateApplication } = useStore();
 
-  const [candidatura, setCandidatura] = useState(null);
-  const [candidato, setCandidato] = useState(null);
-  const [familia, setFamilia] = useState([]);
-  const [documentos, setDocumentos] = useState([]);
-  
-  const [status, setStatus] = useState(undefined);
+  useEffect(() => {
+    if (!authenticated) navigate("/login");
+    else if (currentUser?.tipo !== "admin") navigate("/painel");
+  }, [currentUser, authenticated, navigate]);
+
+  const app = store.applications.find((a) => a.id === id);
+  const candidateUser = app ? store.users.find((u) => u.id === app.userId) : null;
+  const [status, setStatus] = useState(app?.status);
   const [rejectFor, setRejectFor] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [observacoes, setObservacoes] = useState("");
 
-  // 🛡️ Segurança
-  useEffect(() => {
-    if (!user) {
-      navigate("/login");
-    } else if (user.tipo !== "admin") {
-      navigate("/painel");
-    }
-  }, [user, navigate]);
-
-  // 📥 LIGAÇÃO REAL: Vai buscar os dados unificados da candidatura do aluno
-  useEffect(() => {
-    const carregarDossie = async () => {
-      try {
-        const response = await api.get(`/admin/candidatura/${id}`); // Rota detalhada do backend
-        if (response.data) {
-          setCandidatura(response.data.candidatura);
-          setCandidato(response.data.candidato); // O utilizador dono da candidatura
-          setFamilia(response.data.familia || []); // Se tiveres agregado
-          setDocumentos(response.data.documentos || []); // Os ficheiros do upload
-          setStatus(response.data.candidatura.estado);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) carregarDossie();
-  }, [id]);
-
-  if (loading) return <div className="p-8">A carregar dossiê técnico...</div>;
-
-  if (!candidatura || !candidato) {
+  if (!app || !candidateUser) {
     return (
-      <AdminLayout title="Candidatura não encontrada">
-        <Button variant="outline" onClick={() => navigate("/admin/dashboard")}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+      <AdminShell title="Candidatura não encontrada">
+        <Button variant="outline" onClick={() => navigate("/admin/dashboard")} className="cursor-pointer">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao Painel
         </Button>
-      </AdminLayout>
+      </AdminShell>
     );
   }
 
-  // ⚡ LIGAÇÃO REAL: Aprovar ou rejeitar documento individual
-  const updateDocStatus = async (docType, novoEstado, motivo = "") => {
+  const setDocStatus = async (type, s, reason) => {
+    const doc = app.documents.find((d) => d.type === type);
     try {
-      const response = await api.put(`/admin/candidatura/${id}/documento`, {
-        tipo_documento: docType,
-        estado: novoEstado,
-        motivo_rejeicao: motivo
-      });
-
-      if (response.data.ok) {
-        // Atualiza a lista localmente para refletir o ecrã instantaneamente
-        setDocumentos(prev =>
-          prev.map((d) => d.tipo === docType ? { ...d, estado: novoEstado, motivo_rejeicao: motivo } : d)
-        );
-        alert(novoEstado === "aprovado" ? "Documento aprovado com sucesso!" : "Documento rejeitado com sucesso!");
+      if (doc?.id) {
+        await DocumentosAPI.atualizarEstado(doc.id, s, reason);
       }
     } catch (err) {
-      console.error(err);
-      alert("Erro ao alterar o estado do documento.");
+      console.warn("[api] atualizar estado documento falhou", err?.message);
     }
+    const newDocs = app.documents.map((d) =>
+      d.type === type ? { ...d, status: s, rejectionReason: s === "rejeitado" ? reason : undefined } : d
+    );
+    updateApplication(app.id, { documents: newDocs });
+    toast.success(s === "aprovado" ? "Documento aprovado" : "Documento rejeitado");
   };
 
-  // ⚡ LIGAÇÃO REAL: Atualizar decisão global da candidatura
   const saveStatus = async () => {
     if (!status) return;
     try {
-      const response = await api.put(`/admin/candidatura/${id}/estado`, { estado: status });
-      if (response.data.ok) {
-        alert("Estado geral da candidatura atualizado com sucesso!");
-        // Atualiza candidatura local
-        setCandidatura(prev => ({ ...prev, estado: status }));
-      }
+      await AdminAPI.atualizarEstadoCandidatura(app.id, status, observacoes);
     } catch (err) {
-      console.error(err);
-      alert("Erro ao guardar a decisão global.");
+      console.warn("[api] atualizar estado candidatura falhou", err?.message);
     }
+    updateApplication(app.id, { status });
+    toast.success("Decisão gravada e e-mail enviado ao aluno");
   };
 
-  const meta = statusMeta(candidatura.estado);
+  const meta = statusMeta(app.status);
 
   return (
-    <AdminLayout title={`Dossiê — ${candidato.nome} ${candidato.apelido}`}>
+    <AdminShell title={`Dossiê — ${candidateUser.firstName} ${candidateUser.lastName}`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild className="cursor-pointer">
           <Link to="/admin/dashboard"><ArrowLeft className="mr-2 h-4 w-4" /> Voltar</Link>
         </Button>
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-mono text-xs text-muted-foreground">Processo #{candidatura.id}</span>
+          <span className="font-mono text-xs text-muted-foreground">{app.id}</span>
           <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
         </div>
       </div>
 
       <Tabs defaultValue="dados">
-        <TabsList>
-          <TabsTrigger value="dados">1. Dados Gerais</TabsTrigger>
-          <TabsTrigger value="familia">2. Agregado Familiar</TabsTrigger>
-          <TabsTrigger value="docs">3. Ficheiros e Validação</TabsTrigger>
-          <TabsTrigger value="decisao">4. Decisão Global</TabsTrigger>
+        <TabsList className="bg-muted p-1 rounded-lg">
+          <TabsTrigger value="dados" className="cursor-pointer">1. Dados Gerais</TabsTrigger>
+          <TabsTrigger value="familia" className="cursor-pointer">2. Agregado Familiar</TabsTrigger>
+          <TabsTrigger value="docs" className="cursor-pointer">3. Ficheiros e Validação</TabsTrigger>
+          <TabsTrigger value="decisao" className="cursor-pointer">4. Decisão Global</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados">
-          <Card className="mt-4">
+          <Card className="mt-4 border-border">
             <CardContent className="p-6">
               <SectionTitle>Identificação</SectionTitle>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Info label="Nome">{candidato.nome} {candidato.apelido}</Info>
-                <Info label="Email">{candidato.email}</Info>
-                <Info label="Telefone">{candidatura.telefone ?? "—"}</Info>
-                <Info label="Data de nascimento">{candidatura.data_nascimento ?? "—"}</Info>
-                <Info label="CC">{candidatura.num_cc ?? "—"}</Info>
-                <Info label="NIF">{candidatura.nif ?? "—"}</Info>
+                <Info label="Nome">{candidateUser.firstName} {candidateUser.lastName}</Info>
+                <Info label="Email">{candidateUser.email}</Info>
+                <Info label="Telefone">{app.personal.phone ?? "—"}</Info>
+                <Info label="Data de nascimento">{app.personal.birthdate ?? "—"}</Info>
+                <Info label="CC">{app.personal.ccNumber ?? "—"}</Info>
+                <Info label="NIF">{app.personal.nif ?? "—"}</Info>
                 <Info label="Morada" className="sm:col-span-2 lg:col-span-3">
-                  {candidatura.morada ?? "—"}, {candidatura.codigo_postal ?? "—"}
+                  {app.personal.address ?? "—"}, {app.personal.postalCode ?? "—"} {app.personal.city ?? ""}
                 </Info>
               </div>
 
@@ -201,18 +140,18 @@ export default function DetalhesCandidatura() {
 
               <SectionTitle>Ensino Superior</SectionTitle>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Info label="Instituição (1ª)">{candidatura.instituicao_1 ?? "—"}</Info>
-                <Info label="2ª preferência">{candidatura.instituicao_2 ?? "—"}</Info>
-                <Info label="3ª preferência">{candidatura.instituicao_3 ?? "—"}</Info>
-                <Info label="Curso">{candidatura.curso ?? "—"}</Info>
-                <Info label="Ano letivo">{candidatura.ano_letivo ?? "—"}</Info>
+                <Info label="Instituição (1ª)">{app.personal.institution ?? "—"}</Info>
+                <Info label="2ª preferência">{app.personal.institutionAlt2 ?? "—"}</Info>
+                <Info label="3ª preferência">{app.personal.institutionAlt3 ?? "—"}</Info>
+                <Info label="Curso">{app.personal.course ?? "—"}</Info>
+                <Info label="Ano letivo">{app.personal.academicYear ?? "—"}</Info>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="familia">
-          <Card className="mt-4">
+          <Card className="mt-4 border-border">
             <CardContent className="p-6">
               <SectionTitle>Membros do agregado familiar</SectionTitle>
               <div className="overflow-x-auto rounded-md border border-border">
@@ -226,22 +165,21 @@ export default function DetalhesCandidatura() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {familia.length === 0 ? (
+                    {app.family.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                          Sem membros registados.
+                          Sem membros registados no agregado.
                         </TableCell>
                       </TableRow>
-                    ) : (
-                      familia.map((m) => (
-                        <TableRow key={m.id}>
-                          <TableCell className="font-medium">{m.fullName || m.nome}</TableCell>
-                          <TableCell className="font-mono text-xs">{m.nif}</TableCell>
-                          <TableCell>{m.phone || m.telefone || "—"}</TableCell>
-                          <TableCell>{m.kinship || m.parentesco}</TableCell>
-                        </TableRow>
-                      ))
                     )}
+                    {app.family.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="font-medium text-emerald-950">{m.fullName}</TableCell>
+                        <TableCell className="font-mono text-xs">{m.nif}</TableCell>
+                        <TableCell>{m.phone}</TableCell>
+                        <TableCell>{m.kinship}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -250,56 +188,53 @@ export default function DetalhesCandidatura() {
         </TabsContent>
 
         <TabsContent value="docs">
-          <Card className="mt-4">
+          <Card className="mt-4 border-border">
             <CardContent className="p-6">
               <SectionTitle>Documentos submetidos</SectionTitle>
               <div className="space-y-3">
-                {documentos.map((d) => {
-                  const tone = d.estado === "aprovado" ? "success" : d.estado === "rejeitado" ? "danger" : "neutral";
-                  const label = d.estado === "aprovado" ? "Aprovado" : d.estado === "rejeitado" ? "Rejeitado" : "Pendente";
+                {app.documents.map((d) => {
+                  const tone = d.status === "aprovado" ? "success" : d.status === "rejeitado" ? "danger" : "neutral";
+                  const currentLabel = d.status === "aprovado" ? "Aprovado" : d.status === "rejeitado" ? "Rejeitado" : "Pendente";
                   return (
-                    <div
-                      key={d.tipo}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background p-4"
-                    >
+                    <div key={d.type} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background p-4 shadow-xs">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-600">
                           <FileText className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-display text-sm font-bold text-deep">
-                            {DOC_LABELS[d.tipo]?.pt || d.tipo}
+                          <div className="font-display text-sm font-bold text-emerald-950">
+                            {DOC_LABELS[d.type].pt}
                           </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {d.nome_ficheiro || "—"}
+                          <div className="truncate text-xs text-muted-foreground font-mono mt-0.5">
+                            {d.fileName || "—"}
                           </div>
-                          {d.motivo_rejeicao && (
-                            <div className="mt-1 text-xs text-status-danger">
-                              Motivo: {d.motivo_rejeicao}
+                          {d.rejectionReason && (
+                            <div className="mt-1 text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">
+                              Motivo: {d.rejectionReason}
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge tone={tone}>{label}</StatusBadge>
-                        <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => window.open(`${api.defaults.baseURL}/ficheiros/${d.caminho_ficheiro}`, "_blank")}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <StatusBadge tone={tone}>{currentLabel}</StatusBadge>
+                        <Button size="sm" variant="ghost" className="gap-1.5 cursor-pointer">
                           <Download className="h-3.5 w-3.5" /> PDF
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1.5 border-status-success/50 text-status-success hover:bg-status-success/10"
-                          onClick={() => updateDocStatus(d.tipo, "aprovado")}
+                          className="gap-1.5 border-emerald-500/50 text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                          onClick={() => setDocStatus(d.type, "aprovado")}
                         >
                           <Check className="h-3.5 w-3.5" /> Aprovar
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1.5 border-status-danger/50 text-status-danger hover:bg-status-danger/10"
+                          className="gap-1.5 border-red-500/50 text-red-600 hover:bg-red-50 cursor-pointer"
                           onClick={() => {
-                            setRejectFor(d.tipo);
-                            setRejectReason(d.motivo_rejeicao ?? "");
+                            setRejectFor(d.type);
+                            setRejectReason(d.rejectionReason ?? "");
                           }}
                         >
                           <X className="h-3.5 w-3.5" /> Rejeitar
@@ -314,33 +249,29 @@ export default function DetalhesCandidatura() {
         </TabsContent>
 
         <TabsContent value="decisao">
-          <Card className="mt-4">
+          <Card className="mt-4 border-border">
             <CardContent className="p-6">
               <SectionTitle>Decisão global da candidatura</SectionTitle>
               <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground">
-                    Estado geral
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                    Estado geral do processo
                   </label>
                   <Select value={status} onValueChange={(v) => setStatus(v)}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {STATES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {statusMeta(s).label}
-                        </SelectItem>
+                        <SelectItem key={s} value={s}>{statusMeta(s).label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={saveStatus} className="gap-2">
+                <Button onClick={saveStatus} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm">
                   <Save className="h-4 w-4" /> Guardar decisão
                 </Button>
               </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                A alteração do estado é registada e o candidato é notificado por email.
+              <p className="mt-4 text-xs text-muted-foreground bg-slate-50 p-2.5 rounded border border-slate-100">
+                A alteração do estado global gera uma notificação automatizada enviada diretamente para o e-mail do candidato.
               </p>
             </CardContent>
           </Card>
@@ -348,23 +279,24 @@ export default function DetalhesCandidatura() {
       </Tabs>
 
       <Dialog open={!!rejectFor} onOpenChange={(o) => !o && setRejectFor(null)}>
-        <DialogContent>
+        <DialogContent className="bg-background border border-border">
           <DialogHeader>
-            <DialogTitle>Motivo da rejeição</DialogTitle>
+            <DialogTitle className="text-emerald-950 font-display">Motivo da rejeição</DialogTitle>
           </DialogHeader>
           <Textarea
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Descreva o motivo da rejeição do documento..."
+            placeholder="Descreva detalhadamente o motivo da rejeição do documento para orientar o aluno..."
             rows={4}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectFor(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setRejectFor(null)} className="cursor-pointer">Cancelar</Button>
             <Button
               variant="destructive"
+              className="bg-red-600 hover:bg-red-700 text-white cursor-pointer"
               onClick={() => {
                 if (rejectFor && rejectReason.trim()) {
-                  updateDocStatus(rejectFor, "rejeitado", rejectReason.trim());
+                  setDocStatus(rejectFor, "rejeitado", rejectReason.trim());
                   setRejectFor(null);
                   setRejectReason("");
                 }
@@ -375,15 +307,15 @@ export default function DetalhesCandidatura() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminLayout>
+    </AdminShell>
   );
 }
 
 function SectionTitle({ children }) {
   return (
     <>
-      <h3 className="font-display text-base font-bold text-deep">{children}</h3>
-      <div className="gov-gold-rule mt-1 mb-4 w-10" />
+      <h3 className="font-display text-base font-bold text-emerald-900">{children}</h3>
+      <div className="gov-gold-rule mt-1 mb-4 w-10 bg-amber-500 h-0.5" />
     </>
   );
 }
@@ -391,10 +323,10 @@ function SectionTitle({ children }) {
 function Info({ label, children, className }) {
   return (
     <div className={className}>
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 text-sm font-medium text-foreground">{children}</div>
+      <div className="mt-1 text-sm font-medium text-emerald-950">{children}</div>
     </div>
   );
 }

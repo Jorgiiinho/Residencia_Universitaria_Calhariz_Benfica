@@ -1,131 +1,185 @@
 const db = require('../../config/db');
 
-// SUBMETER CANDIDATURA (Etapa 1: Dados Pessoais, Académicos e Agregado)
-exports.submeterCandidatura = async (asyncReq, res) => {
+const limparCampo = (valor) => {
+  if (valor === undefined || valor === null) return null;
+  const str = String(valor).trim();
+  return str === "" ? null : str;
+};
+
+const formatarCodigoPostal = (val) => {
+  if (!val) return null;
+  const clean = String(val).replace(/\D/g, "");
+  if (clean.length === 7) {
+    return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+  }
+  return val;
+};
+
+// CRIAR OU ATUALIZAR RASCUNHO (POST /api/candidaturas)
+exports.criarOuAtualizarCandidatura = async (req, res) => {
   const connection = await db.getConnection();
+  const user_id = req.userId || (req.user && req.user.id);
+
+  if (!user_id) {
+    connection.release();
+    return res.status(401).json({ ok: false, error: "Sessão expirada." });
+  }
 
   try {
     await connection.beginTransaction();
 
-    // 🛡️ Segurança: O id do utilizador vem encriptado do Token JWT (req.userId) 
-    // e não do corpo do formulário, evitando que um aluno altere dados de outro.
-    const user_id = asyncReq.userId; 
+    const candidatoData = req.body.candidato || req.body || {};
+    const agregado_familiar = req.body.agregado_familiar || req.body.agregado || [];
 
-    // Extraímos os novos campos que movemos para a tabela candidato
-    const {
-      data_nascimento,
-      num_cc,
-      nif,
-      morada,
-      codigo_postal,
-      telefone,
-      instituicao_1,
-      instituicao_2,
-      instituicao_3,
-      curso,
-      ano_letivo,
-      agregado_familiar
-    } = asyncReq.body;
+    const data_nascimento = limparCampo(candidatoData.data_nascimento);
+    const num_cc         = limparCampo(candidatoData.num_cc);
+    const nif            = limparCampo(candidatoData.nif);
+    const morada         = limparCampo(candidatoData.morada);
+    const freguesia      = limparCampo(candidatoData.freguesia);
+    const telefone       = limparCampo(candidatoData.telefone);
+    const instituicao_1  = limparCampo(candidatoData.instituicao_1);
+    const instituicao_2  = limparCampo(candidatoData.instituicao_2);
+    const instituicao_3  = limparCampo(candidatoData.instituicao_3);
+    const curso          = limparCampo(candidatoData.curso);
+    const ano_letivo     = limparCampo(candidatoData.ano_letivo);
 
-    // Validação preventiva atualizada com todos os novos campos obrigatórios
-    if (
-      !user_id || 
-      !data_nascimento || 
-      !num_cc || 
-      !nif || 
-      !morada || 
-      !codigo_postal || 
-      !telefone || 
-      !instituicao_1 || 
-      !curso || 
-      !ano_letivo
-    ) {
-      await connection.rollback();
-      return res.status(400).json({ ok: false, error: "Por favor, preencha todos os dados pessoais e académicos obrigatórios." });
+    let codigo_postal = limparCampo(candidatoData.codigo_postal);
+    if (codigo_postal) {
+      codigo_postal = codigo_postal.replace(/\D/g, "");
     }
 
-    // INSERIR NA TABELA 'CANDIDATO' (Query reestruturada com os novos campos civis)
-    const sqlCandidato = `
-      INSERT INTO candidato (
-        user_id, data_nascimento, num_cc, nif, morada, codigo_postal, telefone, 
-        instituicao_1, instituicao_2, instituicao_3, curso, ano_letivo, estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')
-    `;
-    
-    const [resultadoCandidato] = await connection.query(sqlCandidato, [
-      user_id,
-      data_nascimento,
-      num_cc,
-      nif,
-      morada,
-      codigo_postal,
-      telefone,
-      instituicao_1,
-      instituicao_2 || null,
-      instituicao_3 || null,
-      curso,
-      ano_letivo
-    ]);
+    const [existe] = await connection.query('SELECT id FROM candidato WHERE user_id = ?', [user_id]);
+    let candidatoId;
 
-    const candidatoId = resultadoCandidato.insertId;
+    if (existe.length > 0) {
+      candidatoId = existe[0].id;
+      // SQL UPDATE com 'freguesia'
+      const sqlUpdate = `
+        UPDATE candidato SET 
+          data_nascimento = ?, num_cc = ?, nif = ?, morada = ?, codigo_postal = ?, freguesia = ?,
+          telefone = ?, instituicao_1 = ?, instituicao_2 = ?, instituicao_3 = ?, 
+          curso = ?, ano_letivo = ?
+        WHERE id = ?
+      `;
+      await connection.query(sqlUpdate, [
+        data_nascimento, num_cc, nif, morada, codigo_postal, freguesia,
+        telefone, instituicao_1, instituicao_2, instituicao_3,
+        curso, ano_letivo, candidatoId
+      ]);
+    } else {
+      // SQL INSERT com 'freguesia'
+      const sqlInsert = `
+        INSERT INTO candidato (
+          user_id, data_nascimento, num_cc, nif, morada, codigo_postal, freguesia, telefone, 
+          instituicao_1, instituicao_2, instituicao_3, curso, ano_letivo, estado
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')
+      `;
+      const [resultadoCandidato] = await connection.query(sqlInsert, [
+        user_id, data_nascimento, num_cc, nif, morada, codigo_postal, freguesia, telefone, 
+        instituicao_1, instituicao_2, instituicao_3, curso, ano_letivo
+      ]);
+      candidatoId = resultadoCandidato.insertId;
+    }
 
-    // INSERIR OS FAMILIARES NA TABELA 'AGREGADO_FAMILIAR'
+    await connection.query('DELETE FROM agregado_familiar WHERE candidato_id = ?', [candidatoId]);
+
     if (agregado_familiar && agregado_familiar.length > 0) {
       const sqlAgregado = `
         INSERT INTO agregado_familiar (candidato_id, nif, nome_completo, telefone, grau_parentesco)
         VALUES (?, ?, ?, ?, ?)
       `;
-
-      for (const membro of agregado_familiar) {
-        if (!membro.nif || !membro.nome_completo || !membro.telefone || !membro.grau_parentesco) {
-          throw new Error("Dados de membro do agregado incompletos.");
+      for (const m of agregado_familiar) {
+        const nomeMembro = limparCampo(m.fullName || m.nome_completo);
+        if (nomeMembro) {
+          await connection.query(sqlAgregado, [
+            candidatoId,
+            limparCampo(m.nif) || '',
+            nomeMembro,
+            limparCampo(m.phone || m.telefone) || '',
+            limparCampo(m.kinship || m.grau_parentesco) || 'Outro'
+          ]);
         }
-        
-        await connection.query(sqlAgregado, [
-          candidatoId,
-          membro.nif,
-          membro.nome_completo,
-          membro.telefone,
-          membro.grau_parentesco
-        ]);
       }
     }
 
     await connection.commit();
-    
-    return res.status(201).json({ 
-      ok: true, 
-      mensagem: "Dados pessoais, académicos e agregado familiar guardados com sucesso!", 
-      candidatoId 
-    });
+    return res.status(200).json({ ok: true, mensagem: "Candidatura guardada com sucesso!", candidatoId });
 
   } catch (error) {
     await connection.rollback();
-    console.error("Erro ao submeter candidatura:", error);
-    return res.status(500).json({ ok: false, error: "Erro interno ao processar a candidatura.", detalhe: error.message });
+    console.error("Erro ao guardar candidatura:", error);
+    return res.status(500).json({ ok: false, error: "Erro interno no servidor." });
   } finally {
     connection.release();
   }
 };
 
-//BUSCAR MINHA CANDIDATURA 
+//  BUSCAR MINHA CANDIDATURA (GET /api/candidaturas/me)
 exports.obterMinhaCandidatura = async (req, res) => {
+  const user_id = req.userId || (req.user && req.user.id);
+
+  if (!user_id) {
+    return res.status(401).json({ ok: false, error: "Utilizador não autenticado." });
+  }
+
   try {
-    const user_id = req.userId; // Extraído de forma segura do Token JWT
-
-    const querySQL = 'SELECT * FROM candidato WHERE user_id = ?';
-    const [rows] = await db.query(querySQL, [user_id]);
-
+    const [rows] = await db.query('SELECT * FROM candidato WHERE user_id = ?', [user_id]);
     if (rows.length === 0) {
-      // Se não houver linha, devolve candidato como null 
       return res.status(200).json({ ok: true, candidatura: null });
     }
 
-    // Se houver, devolve o registo 
-    return res.status(200).json({ ok: true, candidatura: rows[0] });
+    const candidato = rows[0];
+
+    const [family] = await db.query(
+      'SELECT id, nif, nome_completo as fullName, telefone as phone, grau_parentesco as kinship FROM agregado_familiar WHERE candidato_id = ?', 
+      [candidato.id]
+    );
+
+    const [docs] = await db.query(
+      'SELECT id, tipo_documento as type, url_ficheiro as fileName, criado_em as uploadedAt, estado as status, motivo as rejectionReason FROM documentos WHERE candidato_id = ?', 
+      [candidato.id]
+    );
+
+    return res.status(200).json({ 
+      ok: true, 
+      candidatura: {
+        id: candidato.id,
+        userId: candidato.user_id,
+        status: candidato.estado,
+        personal: {
+          birthdate: candidato.data_nascimento,
+          ccNumber: candidato.num_cc,
+          nif: candidato.nif,
+          address: candidato.morada,
+          parish: candidato.freguesia, 
+          postalCode: formatarCodigoPostal(candidato.codigo_postal),
+          phone: candidato.telefone,
+          institution: candidato.instituicao_1,
+          institutionAlt2: candidato.instituicao_2,
+          institutionAlt3: candidato.instituicao_3,
+          course: candidato.curso,
+          academicYear: candidato.ano_letivo
+        },
+        family: family,
+        documents: docs
+      } 
+    });
 
   } catch (error) {
-    console.error('Erro ao obter a candidatura do utilizador:', error);
-    return res.status(500).json({ ok: false, error: 'Erro interno ao verificar o estado do seu processo.' });
+    console.error('Erro ao obter candidatura:', error);
+    return res.status(500).json({ ok: false, error: "Erro interno de sincronização." });
+  }
+};
+
+exports.submeterCandidatura = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query("UPDATE candidato SET estado = 'aguarda_validacao' WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, error: "Não localizada." });
+    }
+    return res.status(200).json({ ok: true, mensagem: "Submetido!" });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: "Erro de submissão." });
   }
 };

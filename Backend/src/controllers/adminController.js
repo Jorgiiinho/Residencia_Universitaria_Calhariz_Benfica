@@ -1,14 +1,22 @@
 const db = require('../../config/db');
 const bcrypt = require('bcryptjs');
 
-// 📊 1. LISTAR TODAS AS CANDIDATURAS (Para a tabela do Dashboard Geral)
+const formatarCodigoPostal = (val) => {
+  if (!val) return null;
+  const clean = String(val).replace(/\D/g, "");
+  if (clean.length === 7) {
+    return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+  }
+  return val;
+};
+
+// LISTAR TODAS AS CANDIDATURAS (Para a tabela do Dashboard Geral)
 exports.listarTodasCandidaturas = async (req, res) => {
   try {
-    // Adicionado candidato.estado para alimentar as badges coloridas no React
     const querySQL = `
       SELECT 
         candidato.id as candidatura_id, 
-        CONCAT(user.nome, ' ', user.apelido) as nome_completo, 
+        CONCAT(user.nome, ' ', IFNULL(user.apelido, '')) as nome_completo, 
         user.email, 
         candidato.ano_letivo, 
         candidato.curso,
@@ -18,7 +26,6 @@ exports.listarTodasCandidaturas = async (req, res) => {
     `;
 
     const [rows] = await db.query(querySQL);
-    
     return res.status(200).json({ ok: true, candidaturas: rows });
   } catch (error) {
     console.error('Erro ao listar candidaturas:', error);
@@ -26,30 +33,29 @@ exports.listarTodasCandidaturas = async (req, res) => {
   }
 };
 
-// 🔍 2. DOSSIÊ DETALHADO DO ALUNO (Ficha completa, Agregado e PDFs)
+// DOSSIÊ DETALHADO DO ALUNO (Ficha completa, Agregado e PDFs)
 exports.obterDetalhesCandidatura = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // 👈 Correção: Campos civis (nif, num_cc, morada...) movidos para o prefixo 'candidato.'
-    // 👈 Correção: Removida a vírgula incorreta que estava antes do FROM
     const queryCandidato = `
       SELECT 
-        candidato.id as candidatura_id, 
-        CONCAT(user.nome, ' ', user.apelido) as nome_completo, 
+        candidato.id as id, 
+        candidato.user_id as userId,
+        CONCAT(user.nome, ' ', IFNULL(user.apelido, '')) as nome_completo, 
         user.email, 
-        candidato.ano_letivo, 
+        candidato.ano_letivo as academicYear, 
         candidato.curso,
-        candidato.instituicao_1, 
-        candidato.instituicao_2, 
-        candidato.instituicao_3,
-        candidato.telefone, 
+        candidato.instituicao_1 as institution, 
+        candidato.instituicao_2 as institutionAlt2, 
+        candidato.instituicao_3 as institutionAlt3,
+        candidato.telefone as phone, 
         candidato.nif, 
-        candidato.num_cc,  
-        candidato.data_nascimento, 
-        candidato.codigo_postal, 
-        candidato.morada,
-        candidato.estado
+        candidato.num_cc as ccNumber,  
+        candidato.data_nascimento as birthdate, 
+        candidato.codigo_postal as postalCode, 
+        candidato.morada as address,
+        candidato.estado as status
       FROM candidato
       JOIN user ON candidato.user_id = user.id
       WHERE candidato.id = ?
@@ -63,21 +69,24 @@ exports.obterDetalhesCandidatura = async (req, res) => {
 
     // Procura os membros do agregado familiar vinculados a este candidato
     const [agregadoFamiliarDetalhes] = await db.query(
-      `SELECT id, nif, nome_completo, telefone, grau_parentesco FROM agregado_familiar WHERE candidato_id = ?`, 
+      `SELECT id, nif, nome_completo as fullName, telefone as phone, grau_parentesco as kinship FROM agregado_familiar WHERE candidato_id = ?`, 
       [id]
     );
 
     // Procura a lista de PDFs e os respetivos estados de aprovação individual
     const [documentosDetalhes] = await db.query(
-      `SELECT tipo_documento, url_ficheiro, criado_em, estado FROM documentos WHERE candidato_id = ?`, 
+      `SELECT id, tipo_documento as type, url_ficheiro as fileName, criado_em as uploadedAt, estado as status, motivo as rejectionReason FROM documentos WHERE candidato_id = ?`, 
       [id]
     );
 
     return res.status(200).json({
-      ok: true,
-      candidatura: candidatoDetalhes[0],
-      agregado_familiar: agregadoFamiliarDetalhes,
-      documentos: documentosDetalhes
+        ok: true,
+        candidatura: {
+        ...candidatoDetalhes[0],
+        postalCode: formatarCodigoPostal(candidatoDetalhes[0].postalCode) // 🌟 Formata o código postal para o admin ver com o hífen!
+            },
+        agregado_familiar: agregadoFamiliarDetalhes,
+        documentos: documentosDetalhes
     });
 
   } catch (error) {
@@ -86,23 +95,23 @@ exports.obterDetalhesCandidatura = async (req, res) => {
   }
 };
 
-// 📄 3. AVALIAÇÃO INDIVIDUAL DE DOCUMENTO (Aprovar / Rejeitar um PDF específico)
+// AVALIAÇÃO INDIVIDUAL DE DOCUMENTO (Aprovar / Rejeitar um PDF específico)
 exports.atualizarEstadoDocumento = async (req, res) => {
-  const { candidato_id } = req.params;
-  const { tipo_documento, novo_estado } = req.body;
+  const { documento_id } = req.params;
+  const { estado, motivo } = req.body; // 🌟 Sincronizado com o payload enviado pelo frontend
 
   const estadosValidos = ['pendente', 'aprovado', 'rejeitado'];
 
-  if (!estadosValidos.includes(novo_estado)) {
+  if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ ok: false, error: "Estado inválido. Use 'pendente', 'aprovado' ou 'rejeitado'." });
   }
 
   try {
-    const atualizarEstadoDoc = `UPDATE documentos SET estado = ? WHERE candidato_id = ? AND tipo_documento = ?`;
-    const [resultado] = await db.query(atualizarEstadoDoc, [novo_estado, candidato_id, tipo_documento]);
+    const atualizarEstadoDoc = `UPDATE documentos SET estado = ?, motivo = ? WHERE id = ?`;
+    const [resultado] = await db.query(atualizarEstadoDoc, [estado, motivo || null, documento_id]);
 
     if (resultado.affectedRows === 0) {
-      return res.status(404).json({ ok: false, error: "Documento não encontrado para este candidato." });
+      return res.status(404).json({ ok: false, error: "Documento não encontrado na base de dados." });
     }
     return res.status(200).json({ ok: true, mensagem: "Estado do documento atualizado com sucesso!" });
   } catch (error) {
@@ -111,12 +120,12 @@ exports.atualizarEstadoDocumento = async (req, res) => {
   }
 };
 
-// 🏛️ 4. GESTÃO DE EQUIPA (Criar conta profissional para outro funcionário da Câmara)
+// GESTÃO DE EQUIPA (Criar conta profissional para outro funcionário da Câmara)
 exports.criarFuncionarioAdmin = async (req, res) => {
-  const { nome, apelido, email, password } = req.body;
+  const { nome, email, password, telefone } = req.body; // 🌟 Adaptado para receber o payload unificado do frontend
 
   try {
-    if (!email || !password || !nome || !apelido) {
+    if (!email || !password || !nome) {
       return res.status(400).json({ ok: false, error: "Por favor, preencha todos os campos obrigatórios." });
     }
 
@@ -131,10 +140,10 @@ exports.criarFuncionarioAdmin = async (req, res) => {
 
     // Grava as credenciais básicas na tabela 'user' com o cargo 'admin'
     const inserirUserAdmin = `
-      INSERT INTO user (nome, apelido, email, password, tipo) 
+      INSERT INTO user (nome, email, password, telefone, tipo) 
       VALUES (?, ?, ?, ?, 'admin')
     `;
-    const [resultInsercaoUserAdmin] = await db.query(inserirUserAdmin, [nome, apelido, email, hashedPassword]);
+    const [resultInsercaoUserAdmin] = await db.query(inserirUserAdmin, [nome, email, hashedPassword, telefone || null]);
     
     const novoAdminId = resultInsercaoUserAdmin.insertId;
 
@@ -150,40 +159,28 @@ exports.criarFuncionarioAdmin = async (req, res) => {
   }
 };
 
-//  MAQUINA DE ESTADOS DO PROCESSO
+// MÁQUINA DE ESTADOS DO PROCESSO
 exports.atualizarEstadoCandidatura = async (req, res) => {
   const { id } = req.params; 
-  const { novo_estado } = req.body; 
+  const { estado, observacoes } = req.body; // 🌟 Sincronizado com os parâmetros de decisão do administrador
 
-  const estadosValidos = ['rascunho', 'aguarda_documentos', 'aguarda_validacao', 'em_analise', 'pendente_correcao', 'aprovado', 'rejeitado', 'arquivado', 'desistencia'];  
+  const estadosValidos = ['rascunho', 'incompleta', 'aguarda_documentos', 'aguarda_validacao', 'em_analise', 'pendente_correcao', 'aprovada', 'rejeitada', 'arquivada', 'desistencia'];  
   
-  if (!estadosValidos.includes(novo_estado)) {
+  if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ ok: false, error: "Estado de processo inválido." });
   }
 
   try {
-    const query = 'UPDATE candidato SET estado = ? WHERE id = ?';
-    const [result] = await db.query(query, [novo_estado, id]);
+    const query = 'UPDATE candidato SET estado = ?, observacoes = ? WHERE id = ?';
+    const [result] = await db.query(query, [estado, observacoes || null, id]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ ok: false, error: "Candidatura não encontrada." });
     }
 
-    const nomesEstados = {
-      'rascunho': 'Rascunho',
-      'aguarda_documentos': 'Aguardar Envio de Documentos',
-      'aguarda_validacao': 'Aguarda Validação',
-      'em_analise': 'Em Análise',
-      'pendente_correcao': 'Pendente de Correção',
-      'aprovado': 'Aprovado',
-      'rejeitado': 'Rejeitado',
-      'arquivado': 'Arquivado',
-      'desistencia': 'Desistência Declarada'
-    };
-
     return res.json({ 
       ok: true, 
-      message: `O processo foi alterado para: ${nomesEstados[novo_estado]}.` 
+      message: `O processo foi alterado com sucesso.` 
     });
   } catch (error) {
     console.error(error);

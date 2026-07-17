@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useContext } from 'react';
 import { AuthContext } from './context/AuthContext';
+import { AppProviders } from './lib/providers'; 
 
 //  Páginas Públicas, de Informação e Autenticação
 import Home from './pages/Home';        
@@ -23,7 +24,6 @@ import CriarFuncionario from './pages/CriarFuncionario';
 function PrivateRoute({ children, allowedType }) {
   const { authenticated, user, loading } = useContext(AuthContext);
   
-  // Mostra o estado real do utilizador no milissegundo em que a rota tenta abrir
   console.log("[PrivateRoute] A verificar acesso para:", { 
     urlAtual: window.location.pathname,
     autenticado: authenticated, 
@@ -32,7 +32,6 @@ function PrivateRoute({ children, allowedType }) {
     contextoCarregando: loading 
   });
 
-  // Se o contexto ainda estiver a ler o localStorage, espera e não redireciona já
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background text-sm text-muted-foreground animate-pulse">
@@ -51,63 +50,64 @@ function PrivateRoute({ children, allowedType }) {
     return <Navigate to="/login" />;
   }
   
-  console.log("✅ [PrivateRoute] Acesso Autorizado! A renderizar o ecrã.");
   return children;
 }
 
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          {/* 🔓 Rotas Públicas */}
-          <Route path="/" element={<Home />} /> 
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login />} />
+      <AppProviders> 
+        <AuthProvider>
+          <Routes>
+            {/* Rotas Públicas */}
+            <Route path="/" element={<Home />} /> 
+            <Route path="/register" element={<Register />} />
+            <Route path="/login" element={<Login />} />
 
-          {/* 🎓 Rotas Protegidas do Aluno (Candidato) */}
-          <Route path="/painel" element={
-            <PrivateRoute allowedType="candidato">
-              <Painel />
-            </PrivateRoute>
-          } />
-          <Route path="/candidatura/dados" element={
-            <PrivateRoute allowedType="candidato">
-              <CandidaturaDados />
-            </PrivateRoute>
-          } />
-          <Route path="/candidatura/documentos" element={
-            <PrivateRoute allowedType="candidato">
-              <CandidaturaDocumentos />
-            </PrivateRoute>
-          } />
-          <Route path="/candidatura/corrigir" element={
-            <PrivateRoute allowedType="candidato">
-              <CandidaturaCorrigir />
-            </PrivateRoute>
-          } />
+            {/* Rotas Protegidas do Aluno (Candidato) */}
+            <Route path="/painel" element={
+              <PrivateRoute allowedType="candidato">
+                <Painel />
+              </PrivateRoute>
+            } />
+            <Route path="/candidatura/dados" element={
+              <PrivateRoute allowedType="candidato">
+                <CandidaturaDados />
+              </PrivateRoute>
+            } />
+            <Route path="/candidatura/documentos" element={
+              <PrivateRoute allowedType="candidato">
+                <CandidaturaDocumentos />
+              </PrivateRoute>
+            } />
+            <Route path="/candidatura/corrigir" element={
+              <PrivateRoute allowedType="candidato">
+                <CandidaturaCorrigir />
+              </PrivateRoute>
+            } />
 
-          {/* Rotas Protegidas da Câmara Municipal (Admin) */}
-          <Route path="/admin/dashboard" element={
-            <PrivateRoute allowedType="admin">
-              <AdminDashboard />
-            </PrivateRoute>
-          } />
-          <Route path="/admin/candidatura/:id" element={
-            <PrivateRoute allowedType="admin">
-              <DetalhesCandidatura />
-            </PrivateRoute>
-          } />
-          <Route path="/admin/criar-funcionario" element={
-            <PrivateRoute allowedType="admin">
-              <CriarFuncionario />
-            </PrivateRoute>
-          } />
+            {/* Rotas Protegidas da Câmara Municipal (Admin) */}
+            <Route path="/admin/dashboard" element={
+              <PrivateRoute allowedType="admin">
+                <AdminDashboard />
+              </PrivateRoute>
+            } />
+            <Route path="/admin/candidatura/:id" element={
+              <PrivateRoute allowedType="admin">
+                <DetalhesCandidatura />
+              </PrivateRoute>
+            } />
+            <Route path="/admin/criar-funcionario" element={
+              <PrivateRoute allowedType="admin">
+                <CriarFuncionario />
+              </PrivateRoute>
+            } />
 
-          {/* Redirecionamento padrão caso a rota não exista */}
-          <Route path="*" element={<Navigate to="/login" />} />
-        </Routes>
-      </AuthProvider>
+            {/* Redirecionamento padrão caso a rota não exista */}
+            <Route path="*" element={<Navigate to="/login" />} />
+          </Routes>
+        </AuthProvider>
+      </AppProviders>
     </BrowserRouter>
   );
 }

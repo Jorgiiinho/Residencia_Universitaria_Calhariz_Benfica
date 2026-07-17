@@ -3,30 +3,31 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../../config/env');
 
-//PROCESSO DE REGISTO (Apenas dados básicos de conta)
+// PROCESSO DE REGISTO
 exports.registar = async (req, res) => {
-  const { nome, apelido, email, password } = req.body;
+  console.log("🚨 RECEBI UM PEDIDO DE REGISTO:", req.body);
+  
+  // Adicionamos 'apelido' aqui
+  const { nome, apelido, email, password } = req.body; 
 
   try {
-    // Validações básicas
+    // Adicionamos 'apelido' na validação
     if (!nome || !apelido || !email || !password) {
       return res.status(400).json({ error: "Por favor, preencha todos os campos obrigatórios." });
     }
 
-    // Verifica se o email já existe
     const [utilizadorExiste] = await db.query('SELECT id FROM user WHERE email = ?', [email]);
     if (utilizadorExiste.length > 0) {
       return res.status(400).json({ error: "Este email já se encontra registado." });
     }
 
-    // Encripta a password
     const salt = await bcrypt.genSalt(10);
     const passwordHashed = await bcrypt.hash(password, salt);
 
-    // Cria o utilizador com o tipo padrão 'candidato'
+    //Adicionamos a coluna 'apelido' e o valor correspondente na query
     const [resultado] = await db.query(
       'INSERT INTO user (nome, apelido, email, password, tipo) VALUES (?, ?, ?, ?, "candidato")',
-      [nome, apelido, email, passwordHashed]
+      [nome, apelido, email, passwordHashed] // Adicionamos 'apelido' no array
     );
 
     const novoUtilizadorId = resultado.insertId;
@@ -37,18 +38,11 @@ exports.registar = async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Devolvemos o token e os dados para o React
     return res.status(201).json({
       ok: true,
       mensagem: "Conta criada com sucesso!",
       token,
-      user: {
-        id: novoUtilizadorId,
-        nome,
-        apelido,
-        email,
-        tipo: 'candidato'
-      }
+      user: { id: novoUtilizadorId, nome, apelido, email, tipo: 'candidato' }
     });
 
   } catch (error) {
@@ -73,13 +67,11 @@ exports.login = async (req, res) => {
 
     const utilizador = rows[0];
 
-    // Compara a password digitada com o hash encriptado no banco de dados
     const passwordCorreta = await bcrypt.compare(password, utilizador.password);
     if (!passwordCorreta) {
       return res.status(400).json({ ok: false, error: 'E-mail ou palavra-passe incorretos.' });
     }
 
-    // Gera o Token JWT contendo o ID e o Tipo ('admin' ou 'candidato')
     const token = jwt.sign(
       { id: utilizador.id, tipo: utilizador.tipo }, 
       jwtSecret, 
@@ -93,14 +85,26 @@ exports.login = async (req, res) => {
       user: {
         id: utilizador.id,
         nome: utilizador.nome,
-        apelido: utilizador.apelido,
         email: utilizador.email,
-        tipo: utilizador.tipo // Envia se é 'admin' ou 'candidato'
+        tipo: utilizador.tipo
       }
     });
 
   } catch (error) {
     console.error('Erro no processo de login:', error);
     return res.status(500).json({ ok: false, error: 'Erro interno do servidor ao fazer login.' });
+  }
+};
+
+// VALIDAR SESSÃO DO UTILIZADOR EM TEMPO REAL (GET /api/auth/me)
+exports.me = async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT id, nome, email, tipo FROM user WHERE id = ?', [req.userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Sessão expirada." });
+    }
+    return res.json({ ok: true, user: rows[0] });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: "Erro ao validar sessão." });
   }
 };

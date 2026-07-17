@@ -1,9 +1,4 @@
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS mydb.documentos;
-DROP TABLE IF EXISTS mydb.agregado_familiar;
-DROP TABLE IF EXISTS mydb.admin;
-DROP TABLE IF EXISTS mydb.candidato;
-DROP TABLE IF EXISTS mydb.user;
 --  TABELA USER (Dados gerais e credenciais de login)
 CREATE TABLE IF NOT EXISTS mydb.user (
   id INT NOT NULL AUTO_INCREMENT,
@@ -29,7 +24,9 @@ CREATE TABLE IF NOT EXISTS mydb.candidato (
   instituicao_1 VARCHAR(45) NOT NULL,
   instituicao_2 VARCHAR(45) NULL,
   instituicao_3 VARCHAR(45) NULL,
+  freguesia VARCHAR(100) NOT NULL,
   curso VARCHAR(100) NOT NULL,
+  observacoes VARCHAR(255) NULL,
   ano_letivo VARCHAR(20) NOT NULL,
   estado ENUM(
     'rascunho',
@@ -82,10 +79,12 @@ CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
 ) ENGINE = InnoDB;
 --  TABELA DOCUMENTOS (Controlo de ficheiros PDF)
 CREATE TABLE IF NOT EXISTS mydb.documentos (
+  id INT NOT NULL AUTO_INCREMENT,
   candidato_id INT NOT NULL,
   tipo_documento ENUM(
     'Formulario_candidatura',
-    'CC',
+    'CC_frente',
+    'CC_verso',
     'Declaracao_Residencia',
     'Declaracao_Domicilio_Fiscal',
     'Comprovativo_Inscricao_Matricula',
@@ -93,21 +92,11 @@ CREATE TABLE IF NOT EXISTS mydb.documentos (
     'IRS',
     'Comprovativos_Rendimento_Anuais'
   ) NOT NULL,
+  motivo VARCHAR(255) NULL,
   url_ficheiro VARCHAR(255) NOT NULL,
   criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   estado ENUM('pendente', 'aprovado', 'rejeitado') NOT NULL DEFAULT 'pendente',
   INDEX fk_table2_candidato1_idx (candidato_id ASC) VISIBLE,
   CONSTRAINT fk_table2_candidato1 FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
-INSERT INTO mydb.user (id, nome, apelido, email, password, tipo)
-VALUES (
-    99,
-    'Administrador',
-    'Principal',
-    'admin@ribeirabrava.pt',
-    '$2a$10$7zBCl29qG3kK/7Q2Zl3g/O5UqZ0zS3U1v3b9x9k9e9r9y9o9u9m9i',
-    'admin'
-  );
-INSERT INTO mydb.admin (user_id)
-VALUES (99);
 SET FOREIGN_KEY_CHECKS = 1;

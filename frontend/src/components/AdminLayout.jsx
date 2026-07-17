@@ -1,7 +1,11 @@
-import { useState, useContext } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { Link, useNavigate, useLocation } from "react-router-dom"; 
+import { useContext } from "react";
+import { AuthContext } from "@/context/AuthContext"; 
+import { useI18n } from "@/lib/providers";
+import { LayoutDashboard, Users, UserPlus, LogOut, Globe } from "lucide-react";
 
+//Preservados os imports em PascalCase
+import { Button } from "@/components/ui/Button";
 import {
   Sidebar,
   SidebarContent,
@@ -14,69 +18,60 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
-  SidebarFooter,
-} from "./ui/Sidebar";
-import { LayoutDashboard, Users, UserPlus, LogOut, Globe } from "lucide-react";
-import { Button } from "./ui/button";
-
-// Dicionário de Traduções para o Administrador
-const traducoesAdmin = {
-  pt: {
-    admin_dashboard: "Painel Municipal",
-    admin_applications: "Candidaturas",
-    admin_new_staff: "Criar Funcionário",
-    nav_logout: "Sair da Conta"
-  },
-  en: {
-    admin_dashboard: "Municipal Dashboard",
-    admin_applications: "Applications",
-    admin_new_staff: "Create Staff",
-    nav_logout: "Logout"
-  }
-};
+  SidebarFooter
+} from "@/components/ui/Sidebar";
 
 const items = [
   { title: "admin_dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "admin_applications", url: "/admin/dashboard", icon: Users },
-  { title: "admin_new_staff", url: "/admin/criar-funcionario", icon: UserPlus },
+  { title: "admin_new_staff", url: "/admin/criar-funcionario", icon: UserPlus }
 ];
 
-function AdminSidebar({ lang, setLang, t }) {
-  const { user, logout } = useContext(AuthContext);
+function AdminSidebar() {
+  const { t, lang, setLang } = useI18n();
+  const { user, logout } = useContext(AuthContext); // Lendo o utilizador real logado
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border/50 px-3 py-4">
+      <SidebarHeader className="border-b border-sidebar-border/50 px-3 py-4 bg-background">
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-sm bg-gold text-gold-foreground">
-            <span className="font-display text-sm font-bold">RB</span>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-emerald-600 text-white font-bold text-sm shadow-xs">
+            CRB
           </div>
-          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <div className="font-display text-sm font-bold leading-tight text-sidebar-foreground">
+          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="font-display text-sm font-bold text-emerald-950 truncate">
               Ribeira Brava
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-              Painel Municipal
-            </div>
+            </span>
+            <span className="text-[10px] font-semibold text-amber-700 tracking-wide uppercase">
+              Área de Gestão
+            </span>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+
+      <SidebarContent className="bg-background">
         <SidebarGroup>
-          <SidebarGroupLabel>{t("admin_dashboard")}</SidebarGroupLabel>
-          <SidebarGroupContent>
+          <SidebarGroupLabel className="px-3 text-xs font-bold text-muted-foreground/70 uppercase tracking-wider group-data-[collapsible=icon]:hidden">
+            Menu Administrativo
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="mt-2">
             <SidebarMenu>
               {items.map((item) => {
-                const active = pathname === item.url;
+                const isActive = pathname === item.url;
                 return (
-                  <SidebarMenuItem key={item.title + item.url}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link to={item.url} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{t(item.title)}</span>
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.title)}>
+                      <Link to={item.url} className="flex items-center gap-3 px-3 py-2 rounded-md font-medium transition-colors">
+                        <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-emerald-600" : "text-muted-foreground"}`} />
+                        <span className="group-data-[collapsible=icon]:hidden">{t(item.title) || item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -86,38 +81,27 @@ function AdminSidebar({ lang, setLang, t }) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/50 p-2">
-        <div className="flex items-center gap-1 px-2 pb-2 text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-          <Globe className="h-3 w-3" />
-          <button
-            onClick={() => setLang("pt")}
-            className={`px-1 ${lang === "pt" ? "font-semibold text-gold" : ""}`}
-          >
-            PT
-          </button>
-          <span>·</span>
-          <button
-            onClick={() => setLang("en")}
-            className={`px-1 ${lang === "en" ? "font-semibold text-gold" : ""}`}
-          >
-            EN
-          </button>
+
+      <SidebarFooter className="border-t border-sidebar-border/50 p-3 bg-background">
+        <div className="flex items-center justify-between gap-2 text-xs font-medium text-emerald-900 group-data-[collapsible=icon]:hidden mb-2 px-1">
+          <div className="flex items-center gap-1">
+            <Globe className="h-3.5 w-3.5 opacity-70" />
+            <button onClick={() => setLang("pt")} className={`px-1 py-0.5 rounded cursor-pointer ${lang === "pt" ? "font-bold text-amber-700" : "opacity-60"}`}>PT</button>
+            <button onClick={() => setLang("en")} className={`px-1 py-0.5 rounded cursor-pointer ${lang === "en" ? "font-bold text-amber-700" : "opacity-60"}`}>EN</button>
+          </div>
+          <Button variant="ghost" size="icon" onClick={handleLogout} className="h-7 w-7 text-destructive cursor-pointer" tooltip="Sair da Conta">
+            <LogOut className="h-3.5 w-3.5" />
+          </Button>
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => {
-                logout();
-                navigate("/login");
-              }}
-            >
-              <LogOut className="h-4 w-4" />
-              <span>{t("nav_logout")}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <div className="px-2 pt-2 text-[10px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-          {user?.nome} {user?.apelido}
+        <div className="flex items-center gap-3 border-t border-sidebar-border/30 pt-3 group-data-[collapsible=icon]:hidden px-1">
+          <div className="flex flex-col min-w-0">
+            <div className="text-xs font-bold text-emerald-950 truncate">
+              {user?.nome || "Funcionário"}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {user?.email}
+            </div>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>
@@ -125,30 +109,23 @@ function AdminSidebar({ lang, setLang, t }) {
 }
 
 export function AdminShell({ title, children }) {
-  const [lang, setLang] = useState("pt");
-  const t = (key) => traducoesAdmin[lang]?.[key] || key;
-
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/30">
-        <AdminSidebar lang={lang} setLang={setLang} t={t} />
+        <AdminSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 flex items-center gap-3 border-b border-border bg-background px-4">
-            <SidebarTrigger />
-            <div className="gov-gold-rule w-8" />
-            <h1 className="font-display text-lg font-bold text-deep truncate">
+            <SidebarTrigger className="cursor-pointer" />
+            <div className="gov-gold-rule w-8 h-0.5 bg-amber-500" />
+            <h1 className="font-display text-lg font-bold text-emerald-950 truncate">
               {title}
             </h1>
           </header>
-          <main className="flex-1 p-6">{children}</main>
+          <main className="flex-1 p-6 w-full">{children}</main>
         </div>
       </div>
     </SidebarProvider>
   );
-}
-
-export function AdminLayout({ title, children }) {
-  return <AdminShell title={title}>{children}</AdminShell>;
 }
 
 export function StatusBadge({ tone, children }) {
@@ -157,16 +134,12 @@ export function StatusBadge({ tone, children }) {
     info: "bg-status-info/10 text-status-info border-status-info/30",
     warn: "bg-status-warn/10 text-status-warn border-status-warn/40",
     danger: "bg-status-danger/10 text-status-danger border-status-danger/40",
-    "danger-dark": "bg-status-danger/20 text-status-danger border-status-danger/50",
-    success: "bg-status-success/10 text-status-success border-status-success/40",
-  }[tone];
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200"
+  }[tone] || "bg-muted text-muted-foreground border-border";
+
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
       {children}
     </span>
   );
 }
-
-export { Button };

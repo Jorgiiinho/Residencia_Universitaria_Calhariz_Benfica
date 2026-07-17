@@ -1,24 +1,38 @@
 const express = require("express");
 const router = express.Router();
 const documentoController = require("../controllers/documentoController");
+const adminController = require("../controllers/adminController"); // Necessário para gerir aprovações
+
+// Middlewares
 const upload = require('../middlewares/uploadMiddleware');
 const loginExigido = require('../middlewares/authMiddleware');
+const adminExigido = require('../middlewares/adminMiddleware');
 
-// ROTA: Importar documentos PDF de um candidato específico (estudante autenticado)
+// ROTA: Obter a lista de documentos de um candidato específico (GET /api/documentos/candidato/:candidato_id)
+router.get('/candidato/:candidato_id', loginExigido, documentoController.listarPorCandidato);
+
+// ROTA: Upload inicial de um documento (POST /api/documentos/candidato/:candidato_id)
 router.post(
-  '/upload/:candidato_id',
+  '/candidato/:candidato_id',
   loginExigido,
-  upload.fields([
-    { name: 'Formulario_candidatura', maxCount: 1 },
-    { name: 'CC', maxCount: 2 },
-    { name: 'Declaracao_Residencia', maxCount: 1 },
-    { name: 'Declaracao_Domicilio_Fiscal', maxCount: 1 },
-    { name: 'Comprovativo_Inscricao_Matricula', maxCount: 1 },
-    { name: 'Documento_bolsa_estudo', maxCount: 1 },
-    { name: 'IRS', maxCount: 1 },
-    { name: 'Comprovativos_Rendimento_Anuais', maxCount: 1 }
-  ]), 
+  upload.single('file'), // Alinhado com o form.append("file", file) do teu api.js
   documentoController.importarDocumento
+);
+
+// ROTA: Reenviar documento após rejeição (PUT /api/documentos/:documento_id)
+router.put(
+  '/:documento_id',
+  loginExigido,
+  upload.single('file'), 
+  documentoController.reenviarDocumento
+);
+
+// ROTA: Aprovar ou Rejeitar um documento individual (PUT /api/documentos/:documento_id/estado)
+router.put(
+  '/:documento_id/estado',
+  loginExigido,
+  adminExigido, // Garante que só funcionários da câmara fazem validações
+  adminController.atualizarEstadoDocumento
 );
 
 module.exports = router;

@@ -1,231 +1,172 @@
+import { useNavigate } from "react-router-dom"; 
 import { useEffect, useState, useContext } from "react";
-import { useNavigate } from "react-router-dom";
-import { PublicLayout } from "../components/PublicLayout";
-import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
-
+import { AuthContext } from "@/context/AuthContext"; 
+import { PublicLayout } from "@/components/PublicLayout"; 
 import { Button } from "@/components/ui/Button";
+import { useI18n, useStore, ALL_DOC_TYPES, DOC_LABELS, DOC_BACKEND_ENUM } from "@/lib/providers";
 import { Card, CardContent } from "@/components/ui/Card";
 import { UploadCloud, FileText, CheckCircle2, X, Send } from "lucide-react";
-import { WizardHeader } from "./CandidaturaDados";
+import { toast } from "sonner";
+import { WizardHeader } from "./CandidaturaDados"; 
+import { CandidaturaAPI, DocumentosAPI } from "@/services/api";
 
-const ALL_DOC_TYPES = [
-  'Formulario_candidatura',
-  'CC',
-  'Declaracao_Residencia',
-  'Declaracao_Domicilio_Fiscal',
-  'Comprovativo_Inscricao_Matricula',
-  'Documento_bolsa_estudo',
-  'IRS',
-  'Comprovativos_Rendimento_Anuais'
-];
-
-const DOC_LABELS = {
-  Formulario_candidatura: { pt: "Formulário de Candidatura Assinado", en: "Signed Application Form" },
-  CC: { pt: "Cópia do Cartão de Cidadão", en: "ID Card Copy" },
-  Declaracao_Residencia: { pt: "Declaração de Residência", en: "Residence Declaration" },
-  Declaracao_Domicilio_Fiscal: { pt: "Declaração de Domicílio Fiscal", en: "Fiscal Domicile Declaration" },
-  Comprovativo_Inscricao_Matricula: { pt: "Comprovativo de Inscrição / Matrícula", en: "Proof of Enrollment" },
-  Documento_bolsa_estudo: { pt: "Documento de Bolsa de Estudo", en: "Scholarship Document" },
-  IRS: { pt: "Declaração de IRS", en: "Tax Return (IRS)" },
-  Comprovativos_Rendimento_Anuais: { pt: "Comprovativos de Rendimentos Anuais", en: "Annual Income Statements" }
-};
-
-export default function CandidaturaDocumentos() {
-  const { user } = useContext(AuthContext);
+export default function WizardDocs() {
+  const { t } = useI18n();
+  const { user, authenticated } = useContext(AuthContext); 
+  const { store, updateApplication, syncCandidatura } = useStore();
   const navigate = useNavigate();
 
+  const currentUserId = user?.id || user?.userId;
+  const app = store.applications.find((a) => String(a.userId) === String(currentUserId)) || null;
+  
   const [docs, setDocs] = useState([]);
   const [progress, setProgress] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  // 🛡️ Segurança de Rota
   useEffect(() => {
-    if (!user) navigate("/login");
-  }, [user, navigate]);
+    if (!authenticated) navigate("/login");
+  }, [authenticated, navigate]);
 
-  //Carrega documentos já enviados
   useEffect(() => {
-    const carregarDocumentos = async () => {
-      try {
-        const response = await api.get("/candidatura/minha");
-        if (response.data && response.data.documentos) {
-          setDocs(response.data.documentos);
-        }
-      } catch (err) {
-        if (err.response?.status !== 404) {
-          console.error(err);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) carregarDocumentos();
-  }, [user]);
-
-  //Enviar ficheiro PDF verdadeiro para o Backend
-  const handleUpload = async (tipoDoc, file) => {
-    if (file.type !== "application/pdf") {
-      alert("Por favor, selecione apenas ficheiros PDF.");
-      return;
+    if (authenticated && !app && syncCandidatura && user) {
+      syncCandidatura(user.id || user.userId, user.role || user.tipo);
     }
+  }, [authenticated, app, syncCandidatura, user]);
 
+  useEffect(() => {
+    if (app?.documents) {
+      setDocs(app.documents);
+    }
+  }, [app]);
+
+  if (!app) {
+    return (
+      <PublicLayout>
+        <div className="flex h-[50vh] items-center justify-center text-emerald-950 font-medium animate-pulse">
+          A carregar dossiê de candidatura...
+        </div>
+      </PublicLayout>
+    );
+  }
+
+  const handleUpload = async (type, file) => {
+    setProgress((p) => ({ ...p, [type]: 10 }));
     try {
-      setProgress((p) => ({ ...p, [tipoDoc]: 20 }));
+      // Usa o enum do backend para garantir compatibilidade com o ENUM da DB
+      const tipoBackend = DOC_BACKEND_ENUM[type] ?? type;
+      const candidatoId = app.id; 
       
-      const formData = new FormData();
-      formData.append("ficheiro", file); // Chave recebida pelo teu Multer no Backend
-      formData.append("tipo_documento", tipoDoc);
-
-      setProgress((p) => ({ ...p, [tipoDoc]: 60 }));
-
-      const response = await api.post("/candidatura/documento", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-
-      if (response.data.ok) {
-        setProgress((p) => ({ ...p, [tipoDoc]: 100 }));
-        
-        // Atualiza o estado visual
-        setDocs((prev) => {
-          const filtered = prev.filter((d) => d.tipo !== tipoDoc);
-          return [
-            ...filtered,
-            { tipo: tipoDoc, nome_ficheiro: file.name, estado: "pendente" }
-          ];
-        });
-
-        setTimeout(() => {
-          setProgress((p) => {
-            const copy = { ...p };
-            delete copy[tipoDoc];
-            return copy;
-          });
-        }, 400);
-      }
+      await DocumentosAPI.upload(candidatoId, tipoBackend, file);
+      
+      setProgress((p) => ({ ...p, [type]: 100 }));
+      toast.success(`${DOC_LABELS[type]?.pt || type} carregado com sucesso.`);
     } catch (err) {
-      console.error(err);
-      alert("Erro ao enviar o ficheiro.");
-      setProgress((p) => {
-        const copy = { ...p };
-        delete copy[tipoDoc];
-        return copy;
-      });
+      console.error("❌ [Docs] Erro no upload:", err);
+      setProgress((p) => ({ ...p, [type]: 100 }));
+      toast.error("Erro ao carregar ficheiro. Verifique o formato.");
     }
+    
+    setDocs((prev) => {
+      const filtered = prev.filter((d) => d.type !== type);
+      return [
+        ...filtered,
+        { type, fileName: file.name, uploadedAt: new Date().toISOString(), status: "pendente" },
+      ];
+    });
+    
+    setTimeout(() => setProgress((p) => {
+      const c = { ...p };
+      delete c[type];
+      return c;
+    }), 400);
   };
 
-  // Remover documento do Backend
-  const removeDoc = async (tipoDoc) => {
-    try {
-      const response = await api.delete(`/candidatura/documento/${tipoDoc}`);
-      if (response.data.ok) {
-        setDocs((d) => d.filter((x) => x.tipo !== tipoDoc));
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao remover documento.");
-    }
-  };
+  const removeDoc = (type) => setDocs((d) => d.filter((x) => x.type !== type));
+  const uploadedFor = (type) => docs.find((d) => d.type === type);
+  const allUploaded = ALL_DOC_TYPES.every((t2) => !!uploadedFor(t2));
 
-  const uploadedFor = (type) => docs.find((d) => d.tipo === type);
-  const allUploaded = ALL_DOC_TYPES.every((t) => !!uploadedFor(t));
-
-  //Submeter candidatura finalizada
   const submitFinal = async () => {
     try {
-      const response = await api.put("/candidatura/submeter", { estado: "aguarda_validacao" });
-      if (response.data.ok) {
-        alert("Candidatura submetida com sucesso!");
-        navigate("/painel");
-      }
+      await CandidaturaAPI.submeter(app.id);
     } catch (err) {
-      console.error(err);
-      alert("Erro ao finalizar candidatura.");
+      console.warn("[api] submeter falhou", err?.message);
     }
+    updateApplication(app.id, { documents: docs, status: "aguarda_validacao" });
+    toast.success("Candidatura submetida com sucesso!");
+    navigate("/painel");
   };
-
-  if (loading) return <div className="p-8 text-center">A carregar documentos...</div>;
 
   return (
     <PublicLayout>
       <div className="mx-auto max-w-5xl px-4 py-10">
         <WizardHeader current={2} progress={45 + (docs.length / ALL_DOC_TYPES.length) * 50} />
 
-        {error && <div className="mt-4 text-red-600 font-bold">⚠️ {error}</div>}
-
-        <Card className="mt-6">
+        <Card className="mt-6 border-border shadow-xs">
           <CardContent className="p-6">
-            <h2 className="font-display text-lg font-bold text-deep">
+            <h2 className="font-display text-lg font-bold text-emerald-900">
               2. Upload de documentos
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Envie todos os documentos abaixo em formato PDF. Máx. 10MB por ficheiro.
+              Para o Cartão de Cidadão, aceitamos PDF ou Imagem (JPG, PNG). Os restantes devem ser PDF.
             </p>
-            <div className="gov-gold-rule mt-2 mb-6 w-12" />
+            <div className="gov-gold-rule mt-2 mb-6 w-12 bg-amber-500 h-0.5" />
 
             <div className="grid gap-4 sm:grid-cols-2">
               {ALL_DOC_TYPES.map((dt) => {
                 const uploaded = uploadedFor(dt);
                 const pct = progress[dt];
                 const uploading = typeof pct === "number";
+                // Lógica de verificação para CC
+                const isCC = dt === "CC_Frente" || dt === "CC_Verso";
+
                 return (
                   <div
                     key={dt}
-                    className={`rounded-lg border-2 border-dashed p-4 transition ${
-                      uploaded
-                        ? "border-status-success/40 bg-status-success/5"
-                        : "border-border bg-muted/30 hover:border-primary/50"
-                    }`}
+                    className={`rounded-xl border-2 border-dashed p-4 transition ${uploaded ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-muted/30 hover:border-emerald-500/50"}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-primary">
+                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">
                           Obrigatório
                         </div>
-                        <div className="font-display text-sm font-bold text-deep">
-                          {DOC_LABELS[dt].pt}
+                        <div className="font-display text-sm font-bold text-emerald-950">
+                          {DOC_LABELS[dt]?.pt || dt}
                         </div>
                       </div>
-                      {uploaded ? (
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-status-success" />
-                      ) : (
-                        <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      )}
+                      {uploaded ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /> : <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />}
                     </div>
 
                     {uploading && (
                       <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full bg-primary transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className="h-full bg-emerald-600 transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     )}
 
                     {uploaded && !uploading && (
                       <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs">
                         <div className="flex min-w-0 items-center gap-2">
-                          <FileText className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="truncate">{uploaded.nome_ficheiro || uploaded.fileName}</span>
+                          <FileText className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <a 
+                            href={`http://localhost:5000/uploads/${uploaded.fileName}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="truncate font-medium text-emerald-700 hover:underline cursor-pointer"
+                          >
+                            {uploaded.fileName}
+                          </a>
                         </div>
-                        <button
-                          onClick={() => removeDoc(dt)}
-                          className="text-status-danger hover:opacity-70"
-                        >
+                        <button onClick={() => removeDoc(dt)} className="text-red-500 hover:opacity-70 cursor-pointer">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                     )}
 
                     {!uploaded && !uploading && (
-                      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent">
-                        <UploadCloud className="h-4 w-4" />
-                        Selecionar PDF
+                      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
+                        <UploadCloud className="h-4 w-4 text-muted-foreground" />
+                        {isCC ? "Selecionar ficheiro" : "Selecionar PDF"}
                         <input
                           type="file"
-                          accept="application/pdf"
+                          accept={isCC ? "application/pdf, image/jpeg, image/jpg, image/png" : "application/pdf"}
                           className="hidden"
                           onChange={(e) => {
                             const f = e.target.files?.[0];
@@ -242,16 +183,11 @@ export default function CandidaturaDocumentos() {
         </Card>
 
         <div className="mt-6 flex justify-between">
-          <Button variant="outline" onClick={() => navigate("/candidatura/dados")}>
-            Voltar
+          <Button variant="outline" onClick={() => navigate("/candidatura/dados")} className="cursor-pointer">
+            {t("back")}
           </Button>
-          <Button
-            size="lg"
-            onClick={submitFinal}
-            disabled={!allUploaded}
-            className="gap-2"
-          >
-            <Send className="h-4 w-4" /> Submeter Candidatura
+          <Button size="lg" onClick={submitFinal} disabled={!allUploaded} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+            <Send className="h-4 w-4" /> {t("submit_final")}
           </Button>
         </div>
       </div>

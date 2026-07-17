@@ -3,9 +3,13 @@ const router = express.Router();
 const candidaturaController = require("../controllers/candidaturaController");
 const loginExigido = require('../middlewares/authMiddleware');
 
-// ROTA: Submeter uma candidatura (estudante autenticado)
-router.post('/submeter', loginExigido, candidaturaController.submeterCandidatura);
-//ROTA: Obter a candidatura do estudante autenticado
-router.get('/minha', loginExigido, candidaturaController.obterMinhaCandidatura);
+// Criar ou Atualizar rascunho de candidatura (POST /api/candidaturas)
+router.post('/', loginExigido, candidaturaController.criarOuAtualizarCandidatura);
+
+// Obter a candidatura do estudante autenticado (GET /api/candidaturas/me)
+router.get('/me', loginExigido, candidaturaController.obterMinhaCandidatura);
+
+//Submeter uma candidatura definitiva (POST /api/candidaturas/:id/submeter)
+router.post('/:id/submeter', loginExigido, candidaturaController.submeterCandidatura);
 
 module.exports = router;

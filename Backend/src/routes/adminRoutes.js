@@ -6,18 +6,21 @@ const adminController = require('../controllers/adminController');
 const loginExigido = require('../middlewares/authMiddleware');
 const adminExigido = require('../middlewares/adminMiddleware');
 
-// ROTA: Listar todas as candidaturas (apenas para administradores)
+// Todas as rotas administrativas exigem autenticação e privilégios de Admin
 router.use(loginExigido, adminExigido);
 
-//Rota para listar todas as candidaturas e obter detalhes de uma candidatura específica
+// ROTA: Listar todas as candidaturas (GET /api/admin/candidaturas)
 router.get('/candidaturas', adminController.listarTodasCandidaturas);
+
+// ROTA: Obter detalhes de uma candidatura específica (GET /api/admin/candidaturas/:id)
 router.get('/candidaturas/:id', adminController.obterDetalhesCandidatura);
 
-//Rotas para atualizar o estado de documentos e candidaturas
-router.patch('/candidaturas/:candidato_id/documentos', adminController.atualizarEstadoDocumento);
-router.patch('/candidaturas/:id/estado', adminController.atualizarEstadoCandidatura);
+// ROTA: Atualizar o estado global da candidatura (PUT /api/admin/candidaturas/:id/estado)
 
-// Rota para criar um novo funcionário administrador
-router.post('/criar-admin', adminController.criarFuncionarioAdmin);
+router.put('/candidaturas/:id/estado', adminController.atualizarEstadoCandidatura);
+
+// ROTA: Criar um novo funcionário administrador (POST /api/admin/funcionarios)
+
+router.post('/funcionarios', adminController.criarFuncionarioAdmin);
 
 module.exports = router;

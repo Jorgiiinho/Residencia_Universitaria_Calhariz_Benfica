@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AdminLayout, StatusBadge } from "../components/AdminLayout";
-import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
+import { useEffect, useMemo, useState, useContext } from "react";
+import { AuthContext } from "@/context/AuthContext";
+import { AdminShell, StatusBadge } from "@/components/AdminLayout";
+import { useStore, statusMeta, useI18n } from "@/lib/providers";
 
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -13,133 +13,59 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  TableRow
+} from "@/components/ui/Table";
+
 import { Users, ClipboardList, CheckCircle2, XCircle, Search, Eye } from "lucide-react";
-
-// Pequeno tradutor integrado para o Dashboard
-const traducoesDashboard = {
-  pt: {
-    admin_dashboard: "Painel Municipal",
-    total_registered: "Total de Candidatos",
-    pending: "Pendentes de Análise",
-    approved: "Candidaturas Aprovadas",
-    rejected: "Candidaturas Rejeitadas",
-    process_id: "Nº Processo",
-    candidate: "Candidato",
-    course: "Curso",
-    academic_year: "Ano Letivo",
-    state: "Estado",
-    actions: "Ações",
-    view_process: "Ver Dossiê"
-  },
-  en: {
-    admin_dashboard: "Municipal Dashboard",
-    total_registered: "Total Candidates",
-    pending: "Pending Analysis",
-    approved: "Approved",
-    rejected: "Rejected",
-    process_id: "Process ID",
-    candidate: "Candidate",
-    course: "Course",
-    academic_year: "Academic Year",
-    state: "Status",
-    actions: "Actions",
-    view_process: "View File"
-  }
-};
-
-// Auxiliar para as cores e textos dos estados da Base de Dados
-const statusMeta = (estado) => {
-  switch (estado) {
-    case 'rascunho':
-    case 'aguarda_documentos':
-      return { tone: 'neutral', label: 'Incompleta' };
-    case 'aguarda_validacao':
-      return { tone: 'warn', label: 'Aguardar Validação' };
-    case 'em_analise':
-      return { tone: 'info', label: 'Em Análise' };
-    case 'pendente_correcao':
-      return { tone: 'danger', label: 'Pendente Correção' };
-    case 'aprovado':
-      return { tone: 'success', label: 'Aprovada' };
-    case 'rejeitado':
-      return { tone: 'danger-dark', label: 'Rejeitada' };
-    case 'arquivado':
-      return { tone: 'neutral', label: 'Arquivada' };
-    default:
-      return { tone: 'neutral', label: estado || 'Incompleta' };
-  }
-};
+import { AdminAPI } from "@/services/api";
 
 export default function AdminDashboard() {
-  const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const [lang] = useState("pt"); // Padrão
-  const t = (key) => traducoesDashboard[lang]?.[key] || key;
-
-  const [apps, setApps] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { t } = useI18n();
+  const { store } = useStore();
+  const { user, authenticated } = useContext(AuthContext); // 🌟 Lendo a sessão real do Município
+  const navigate = useNavigate(); // Hook oficial de navegação do React Router Dom
+  
   const [q, setQ] = useState("");
+  const [remoteApps, setRemoteApps] = useState(null);
 
-  // Segurança
+  // Segurança de Rota Interna usando o teu AuthContext real
   useEffect(() => {
-    if (!user) {
+    if (!authenticated) {
       navigate("/login");
-    } else if (user.tipo !== "admin") {
+    } else if (user?.tipo !== "admin") { // No teu App.jsx usas "admin" para a câmara municipal
       navigate("/painel");
     }
-  }, [user, navigate]);
+  }, [user, authenticated, navigate]);
 
-  //Carrega todas as candidaturas do backend
+  // Chamada Real à API das candidaturas da Ribeira Brava
   useEffect(() => {
-    const carregarCandidaturas = async () => {
-      try {
-        const response = await api.get("/admin/candidaturas"); // Rota do teu backend
-        if (response.data) {
-          setApps(response.data.candidaturas || response.data);
-        }
-      } catch (err) {
-        console.error(err);
-        setError("Não foi possível carregar as candidaturas.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!authenticated || user?.tipo !== "admin") return;
+    
+    AdminAPI.listarCandidaturas()
+      .then(({ data }) => setRemoteApps(Array.isArray(data) ? data : data?.candidaturas ?? null))
+      .catch((err) => console.warn("[api] listar candidaturas falhou", err?.message));
+  }, [user, authenticated]);
 
-    if (user && user.tipo === "admin") {
-      carregarCandidaturas();
-    }
-  }, [user]);
+  const apps = remoteApps ?? store.applications;
 
-  // Cálculos em tempo real com base no teu ENUM da base de dados
-  const metrics = useMemo(() => {
-    return {
+  const metrics = useMemo(
+    () => ({
       total: apps.length,
-      pending: apps.filter((a) => ["aguarda_validacao", "em_analise", "pendente_correcao", "rascunho", "aguarda_documentos"].includes(a.estado)).length,
-      approved: apps.filter((a) => a.estado === "aprovado" || a.estado === "aprovada").length,
-      rejected: apps.filter((a) => a.estado === "rejeitado" || a.estado === "rejeitada").length,
-    };
-  }, [apps]);
+      pending: apps.filter((a) => ["aguarda_validacao", "em_analise", "incompleta", "pendente_correcao"].includes(a.status)).length,
+      approved: apps.filter((a) => a.status === "aprovada").length,
+      rejected: apps.filter((a) => a.status === "rejeitada").length
+    }),
+    [apps]
+  );
 
-  // Filtro de pesquisa
   const filtered = apps.filter((a) => {
-    const nomeCompleto = `${a.nome ?? ""} ${a.apelido ?? ""}`.toLowerCase();
-    const cursoCandidato = (a.curso ?? "").toLowerCase();
-    const idCandidatura = String(a.id).toLowerCase();
-    const busca = q.toLowerCase();
-
-    return !q || nomeCompleto.includes(busca) || idCandidatura.includes(busca) || cursoCandidato.includes(busca);
+    const u = store.users.find((x) => x.id === a.userId);
+    const name = `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.toLowerCase();
+    return !q || name.includes(q.toLowerCase()) || a.id.toLowerCase().includes(q.toLowerCase()) || (a.personal.course ?? "").toLowerCase().includes(q.toLowerCase());
   });
 
-  if (loading) return <div className="p-8">A carregar painel municipal...</div>;
-
   return (
-    <AdminLayout title={t("admin_dashboard")}>
-      {error && <div className="mb-4 text-red-600 font-semibold">⚠️ {error}</div>}
-
+    <AdminShell title={t("admin_dashboard")}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard icon={Users} label={t("total_registered")} value={metrics.total} tone="deep" />
         <MetricCard icon={ClipboardList} label={t("pending")} value={metrics.pending} tone="warn" />
@@ -180,43 +106,43 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
                       Nenhuma candidatura encontrada.
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filtered.map((a) => {
-                    const meta = statusMeta(a.estado);
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-mono text-xs">#{a.id}</TableCell>
-                        <TableCell className="font-medium">
-                          {a.nome} {a.apelido}
-                        </TableCell>
-                        <TableCell>{a.curso || "—"}</TableCell>
-                        <TableCell>{a.ano_letivo || "—"}</TableCell>
-                        <TableCell>
-                          <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button asChild size="sm" variant="outline" className="gap-1.5">
-                            <Link to={`/admin/candidatura/${a.id}`}>
-                              <Eye className="h-3.5 w-3.5" /> {t("view_process")}
-                            </Link>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
                 )}
+                {filtered.map((a) => {
+                  const u = store.users.find((x) => x.id === a.userId);
+                  const meta = statusMeta(a.status);
+                  return (
+                    <TableRow key={a.id}>
+                      <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                      <TableCell className="font-medium">
+                        {u?.firstName} {u?.lastName}
+                      </TableCell>
+                      <TableCell>{a.personal.course ?? "\u2014"}</TableCell>
+                      <TableCell>{a.personal.academicYear ?? "\u2014"}</TableCell>
+                      <TableCell>
+                        <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="outline" className="gap-1.5 cursor-pointer">
+                          <Link to={`/admin/candidatura/${a.id}`}>
+                            <Eye className="h-3.5 w-3.5" /> {t("view_process")}
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
-    </AdminLayout>
+    </AdminShell>
   );
 }
 
@@ -225,8 +151,9 @@ function MetricCard({ icon: Icon, label, value, tone }) {
     deep: "bg-deep text-deep-foreground",
     warn: "bg-status-warn/10 text-status-warn",
     success: "bg-status-success/10 text-status-success",
-    danger: "bg-status-danger/10 text-status-danger",
+    danger: "bg-status-danger/10 text-status-danger"
   }[tone];
+
   return (
     <Card>
       <CardContent className="flex items-center gap-4 p-5">

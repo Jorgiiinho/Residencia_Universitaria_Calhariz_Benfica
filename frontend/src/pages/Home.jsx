@@ -1,56 +1,62 @@
-import { Link } from "react-router-dom";
-import { PublicLayout } from "../components/PublicLayout";
-import { Button } from "@/components/ui/Button";
+import { Link } from "react-router-dom"; 
+import { PublicLayout } from "@/components/PublicLayout"; 
+import { Button } from "@/components/ui/Button"; 
+import { useI18n } from "@/lib/providers";
 import { GraduationCap, ShieldCheck, FileCheck2, ArrowRight } from "lucide-react";
 
 export default function Home() {
+  const { t } = useI18n();
+  
   return (
     <PublicLayout>
-      {/* Seção Hero */}
-      <section className="relative overflow-hidden">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-background">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,var(--color-cream),transparent_60%)]" />
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 md:grid-cols-[1.1fr_0.9fr] md:py-24">
+        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 md:grid-cols-2 items-center md:py-24">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-medium uppercase tracking-wider text-deep">
-              <ShieldCheck className="h-3.5 w-3.5" /> Candidaturas 2026/2027
+            <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-900">
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-600" /> Candidaturas 2026/2027
             </span>
-            <h1 className="mt-5 font-display text-4xl font-bold leading-tight text-deep sm:text-5xl">
+            <h1 className="mt-5 font-display text-4xl font-bold leading-tight text-emerald-950 sm:text-5xl">
               Residência Universitária de<br />
-              <span className="text-primary">Calhariz-Benfica</span>
+              <span className="text-emerald-600">Calhariz-Benfica</span>
             </h1>
-            <p className="mt-4 text-base text-muted-foreground max-w-xl leading-relaxed">
-              Portal oficial do Município da Ribeira Brava para atribuição de vagas de alojamento a estudantes do concelho deslocados no Ensino Superior na área metropolitana de Lisboa.
+            <div className="gov-gold-rule mt-4 w-24 h-0.5 bg-amber-500" />
+            <p className="mt-6 max-w-xl text-base text-muted-foreground leading-relaxed">
+              Portal oficial do Município da Ribeira Brava para a atribuição de vagas
+              a estudantes deslocados naturais do concelho, com alojamento em Lisboa.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="gap-2">
+              <Button asChild size="lg" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
                 <Link to="/register">
-                  Iniciar Candidatura <ArrowRight className="h-4 w-4" />
+                  Iniciar candidatura <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg">
-                <Link to="/login">Aceder ao Portal</Link>
+              <Button asChild size="lg" variant="outline" className="cursor-pointer">
+                <Link to="/login">{t("nav_login")}</Link>
               </Button>
             </div>
           </div>
+          
           <div className="relative">
-            <div className="absolute -inset-4 rounded-2xl bg-linear-to-br from-primary/20 via-gold/20 to-transparent blur-2xl" />
+            <div className="absolute -inset-4 rounded-2xl bg-linear-to-br from-emerald-500/20 via-amber-500/20 to-transparent blur-2xl" />
             <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-              <div className="gov-header-band px-6 py-4">
-                <div className="text-xs uppercase tracking-widest opacity-80">Processo</div>
-                <div className="font-display text-xl font-bold">Como candidatar-se</div>
+              <div className="gov-header-band px-6 py-4 bg-emerald-950 text-white">
+                <div className="text-[10px] uppercase tracking-widest opacity-80 font-bold text-amber-500">Processo</div>
+                <div className="font-display text-lg font-bold">Como candidatar-se</div>
               </div>
               <ol className="divide-y divide-border">
                 {[
                   { n: 1, t: "Criar conta no portal com o seu email pessoal" },
                   { n: 2, t: "Preencher os dados pessoais e o agregado familiar" },
                   { n: 3, t: "Submeter os documentos comprovativos em PDF" },
-                  { n: 4, t: "Acompanhar o estado do processo online" },
+                  { n: 4, t: "Acompanhar o estado do processo online" }
                 ].map((s) => (
-                  <li key={s.n} className="flex items-start gap-4 px-6 py-4">
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 font-display text-sm font-bold text-primary">
+                  <li key={s.n} className="flex items-start gap-4 px-6 py-4 bg-background">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-50 font-display text-sm font-bold text-emerald-600">
                       {s.n}
                     </div>
-                    <p className="pt-1 text-sm text-foreground">{s.t}</p>
+                    <p className="pt-1 text-sm text-emerald-950 font-medium">{s.t}</p>
                   </li>
                 ))}
               </ol>
@@ -59,12 +65,15 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Vantagens / Recursos */}
-      <section className="border-t border-border/60 bg-muted/20 py-16">
-        <div className="mx-auto max-w-7xl px-4">
-          <div className="mb-12">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-deep sm:text-3xl">
-              Processo simples, transparente e seguro
+      {/* Features Section */}
+      <section className="border-t border-border/60 bg-muted/20">
+        <div className="mx-auto max-w-7xl px-4 py-16">
+          <div className="mb-10 max-w-2xl">
+            <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+              Portal do Candidato
+            </div>
+            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-emerald-950 sm:text-3xl">
+              Um processo simples, transparente e seguro
             </h2>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
@@ -72,25 +81,27 @@ export default function Home() {
               {
                 icon: GraduationCap,
                 title: "Para estudantes deslocados",
-                text: "Reservado a naturais do concelho da Ribeira Brava a frequentar o ensino superior em Lisboa.",
+                text: "Reservado a naturais do concelho da Ribeira Brava a frequentar o ensino superior em Lisboa."
               },
               {
                 icon: FileCheck2,
                 title: "Documentação digital",
-                text: "Envie IRS, matrícula, comprovativos de rendimento e outros documentos em PDF.",
+                text: "Envie IRS, matrícula, comprovativos de rendimento e outros documentos em PDF."
               },
               {
                 icon: ShieldCheck,
                 title: "Acompanhamento em tempo real",
-                text: "Consulte o estado do processo e corrija documentos rejeitados sem começar de novo.",
-              },
+                text: "Consulte o estado do processo e corrigi documentos rejeitados sem começar de novo."
+              }
             ].map((f) => (
-              <div key={f.title} className="rounded-lg border border-border bg-card p-6 shadow-sm">
-                <div className="grid h-10 w-10 place-items-center rounded-md bg-primary/10 text-primary">
+              <div key={f.title} className="rounded-xl border border-border bg-card p-6 shadow-xs">
+                <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
                   <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-bold text-deep">{f.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{f.text}</p>
+                <h3 className="mt-4 font-display text-base font-bold text-emerald-950">
+                  {f.title}
+                </h3>
+                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{f.text}</p>
               </div>
             ))}
           </div>
