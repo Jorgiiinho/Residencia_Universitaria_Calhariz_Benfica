@@ -3,18 +3,18 @@ import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/Button"; 
 import { useI18n, useStore } from "@/lib/providers";
 import { GraduationCap, ShieldCheck, FileCheck2, ArrowRight } from "lucide-react";
-import { toast } from "sonner"; // Importação do Sonner
+import { toast } from "sonner";
 
 export default function Home() {
   const { t } = useI18n();
-  const { currentUser } = useStore(); // Obtemos o estado do utilizador
+  const { currentUser } = useStore(); 
   const navigate = useNavigate();
 
   // Lógica para Iniciar Candidatura
   const handleStartApplication = () => {
     if (!currentUser) {
       toast.error("Acesso restrito", {
-        description: "Para iniciar uma candidatura, precisa de criar conta ou iniciar sessão.",
+        description: "Para iniciar uma candidatura, precisa de ter sessão iniciada.",
       });
       return;
     }
@@ -54,7 +54,7 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {/* Botão Iniciar Candidatura */}
-              <Button onClick={handleStartApplication} size="lg" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+              <Button onClick={handleStartApplication} size="lg" className="gap-2r">
                 Iniciar candidatura <ArrowRight className="h-4 w-4" />
               </Button>
               
@@ -98,12 +98,10 @@ export default function Home() {
       <section className="border-t border-border/60 bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 py-16">
           <div className="mb-10 max-w-2xl">
-            <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
-              Portal do Candidato
-            </div>
             <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-emerald-950 sm:text-3xl">
               Um processo simples, transparente e seguro
             </h2>
+            <p className="mt-4 text-sm text-muted-foreground"></p>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {[

@@ -3,7 +3,7 @@ import { useContext } from "react";
 import { AuthContext } from "@/context/AuthContext"; 
 import { useI18n } from "@/lib/providers";
 import { Globe, LogOut, UserRound, LayoutDashboard } from "lucide-react";
-
+import brasao from "@/assets/brasao.png";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import {
 
 function PublicHeader() {
   const { t, lang, setLang } = useI18n();
-  const { user, authenticated, logout } = useContext(AuthContext); // Sessão real do utilizador
+  const { user, authenticated, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -25,8 +25,9 @@ function PublicHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/95 backdrop-blur">
       <div className="gov-header-band">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-xs">
-          <span className="font-medium tracking-wide uppercase opacity-90 text-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1 text-xs">
+          <span className="font-medium tracking-wide uppercase opacity-90 text-white"> 
+            <img src={brasao} alt="Brasão da Ribeira Brava" className="inline h-8 w-8 mr-1" />
             {t("brand") || "Câmara Municipal da Ribeira Brava"}
           </span>
           <div className="flex items-center gap-4">
@@ -50,11 +51,20 @@ function PublicHeader() {
       </div>
 
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2 font-display text-lg font-bold text-emerald-950">
-          <span className="text-emerald-950">Residencia Universitaria de Calhariz-Benfica</span> 
+        <Link to="/" className="flex items-center gap-2 font-display text-lg font-bold text-emerald-800">
+          <span className="text-emerald-950"> Residência Universitária de Calhariz-Benfica</span> 
         </Link>
 
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-6">
+          {/* Links de Navegação */}
+          <Link to="/" className="text-sm font-medium text-emerald-950 hover:text-emerald-600 transition-colors">
+            {lang === "pt" ? "Início" : "Home"}
+          </Link>
+          <Link to="/" className="text-sm font-medium text-emerald-950 hover:text-emerald-600 transition-colors">
+            {lang === "pt" ?  "Sobre" : "About"}
+          </Link>
+
+          {/* Lógica de Autenticação */}
           {authenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -82,10 +92,11 @@ function PublicHeader() {
               <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
                 <Link to="/register">Criar Conta</Link>
               </Button>
-            </div>
+            </div> 
           )}
         </nav>
       </div>
+      <div className="gov-gold-rule" /> 
     </header>
   );
 }
@@ -110,8 +121,9 @@ function PublicFooter() {
           <div>
             <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-500">Contactos</div>
             <p className="text-sm opacity-80">
-              geral@cm-ribeirabrava.pt<br />
-              (+351) 291 952 548
+               alojamento@sas.ipl.pt <br/>
+               +351 210 464 970 <br/>
+               Estrada do Calhariz de Benfica 1500-124, Lisboa
             </p>
           </div>
         </div>
