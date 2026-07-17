@@ -1,18 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthAPI, CandidaturaAPI } from "@/services/api";
+import { AuthContext } from "@/context/AuthContext";
 
 const dict = {
   pt: {
-    brand: "Munic\xEDpio da Ribeira Brava",
-    subbrand: "Resid\xEAncia Universit\xE1ria de Calhariz-Benfica",
-    nav_home: "In\xEDcio",
-    nav_about: "Sobre a Resid\xEAncia",
+    brand: "Município da Ribeira Brava",
+    subbrand: "Residência Universitária de Calhariz-Benfica",
+    nav_home: "Início",
+    nav_about: "Sobre a Residência",
     nav_login: "Entrar",
     nav_register: "Criar conta",
-    nav_panel: "A minha \xE1rea",
+    nav_panel: "A minha área",
     nav_logout: "Sair",
     login_title: "Entrar no portal",
-    login_subtitle: "Aluno candidato ou funcion\xE1rio municipal",
+    login_subtitle: "Aluno candidato ou funcionário municipal",
     register_title: "Criar conta de candidato",
     email: "Email",
     password: "Palavra-passe",
@@ -21,11 +22,11 @@ const dict = {
     last_name: "Apelido",
     submit_login: "Entrar",
     submit_register: "Criar conta",
-    have_account: "J\xE1 tenho conta",
-    no_account: "Ainda n\xE3o tenho conta",
+    have_account: "Já tenho conta",
+    no_account: "Ainda não tenho conta",
     welcome: "Bem-vindo/a",
     panel_title: "A minha candidatura",
-    no_application: "Ainda n\xE3o tem uma candidatura activa para o presente ano letivo.",
+    no_application: "Ainda não tem uma candidatura activa para o presente ano letivo.",
     start_application: "Iniciar Nova Candidatura",
     application_state: "Estado da candidatura",
     continue_application: "Continuar candidatura",
@@ -35,28 +36,28 @@ const dict = {
     of: "de",
     personal_data: "Dados Pessoais",
     documents: "Documentos",
-    review: "Revis\xE3o",
+    review: "Revisão",
     save_continue: "Guardar e continuar",
     back: "Voltar",
     submit_final: "Submeter Candidatura Definitiva",
-    add_member: "Adicionar Membro da Fam\xEDlia",
+    add_member: "Adicionar Membro da Família",
     remove: "Remover",
     full_name: "Nome completo",
     nif: "NIF",
     phone: "Telefone",
     kinship: "Grau de parentesco",
     birthdate: "Data de nascimento",
-    cc_number: "N\xFAmero do Cart\xE3o de Cidad\xE3o",
+    cc_number: "Número do Cartão de Cidadão",
     address: "Morada",
-    postal_code: "C\xF3digo Postal",
+    postal_code: "Código Postal",
     freguesia: "Freguesia",
     city: "Localidade",
-    institution: "Institui\xE7\xE3o de Ensino Superior",
+    institution: "Instituição de Ensino Superior",
     course: "Curso",
     academic_year: "Ano letivo",
-    admin_dashboard: "Painel de Administra\xE7\xE3o",
+    admin_dashboard: "Painel de Administração",
     admin_applications: "Candidaturas",
-    admin_new_staff: "Novo Funcion\xE1rio",
+    admin_new_staff: "Novo Funcionário",
     total_registered: "Total inscritos",
     pending: "Pendentes",
     approved: "Aprovados",
@@ -64,7 +65,7 @@ const dict = {
     process_id: "ID Processo",
     candidate: "Candidato",
     state: "Estado",
-    actions: "A\xE7\xF5es",
+    actions: "Ações",
     view_process: "Ver Processo",
     approve: "Aprovar",
     reject: "Rejeitar",
@@ -190,8 +191,9 @@ export function useStore() {
 }
 
 export function AppProviders({ children }) {
+  const { user: authUser } = useContext(AuthContext);
   const [lang, setLangState] = useState("pt");
-  const [store, setStore] = useState(() => typeof window === "undefined" ? EMPTY_STORE : loadStore());
+  const [store, setStore] = useState(() => (typeof window === "undefined" ? EMPTY_STORE : loadStore()));
 
   useEffect(() => {
     setStore(loadStore());
@@ -211,31 +213,20 @@ export function AppProviders({ children }) {
     setStore(next);
   }, []);
 
-  // Utilizador Ativo
+  // Utilizador Ativo - Correção: Ligado ao AuthContext para evitar race condition
   const currentUser = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    const localUserRaw = localStorage.getItem("auth_user");
-    if (localUserRaw) {
-      try {
-        const localUser = JSON.parse(localUserRaw);
-        const norm = {
-          id: String(localUser.id),
-          email: localUser.email,
-          firstName: localUser.firstName || localUser.nome || "",
-          lastName: localUser.lastName || localUser.apelido || "",
-          role: localUser.role || localUser.tipo || "candidato",
-          phone: localUser.phone || localUser.telefone
-        };
-        return norm;
-      } catch (e) {
-        return null;
-      }
-    }
-    return store.users.find((u) => u.id === store.currentUserId) ?? null;
-  }, [store]);
+    if (!authUser) return null;
+    return {
+      id: String(authUser.id),
+      email: authUser.email,
+      firstName: authUser.firstName || authUser.nome || "",
+      lastName: authUser.lastName || authUser.apelido || "",
+      role: authUser.role || authUser.tipo || "candidato",
+      phone: authUser.phone || authUser.telefone || ""
+    };
+  }, [authUser]);
 
   // Sincronização detalhada com o TiDB
-  // Agora aceita opcionalmente o ID e Cargo enviados pelas páginas
   const syncCandidatura = useCallback(async (forcedUserId, forcedRole) => {
     const currentId = forcedUserId || currentUser?.id;
     const currentRole = forcedRole || currentUser?.role;
@@ -394,7 +385,6 @@ export function AppProviders({ children }) {
     commit({ ...store, currentUserId: null });
   };
 
-  // 🌟 DIAGNÓSTICO: Log ao pesquisar candidatura na memória
   const getApplicationForCurrent = () => {
     if (!currentUser) {
       console.log("🔍 [GetApp] currentUser é null!");

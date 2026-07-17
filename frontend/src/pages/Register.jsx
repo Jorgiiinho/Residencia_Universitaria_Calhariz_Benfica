@@ -10,11 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Alert, AlertDescription } from "@/components/ui/Alert";
 import { toast } from "sonner";
 
+
 export default function RegisterPage() {
   const { t } = useI18n();
-  const { register } = useContext(AuthContext);
   const navigate = useNavigate();
-  
+  const { register, login } = useContext(AuthContext);
   const [firstName, setFirst] = useState("");
   const [lastName, setLast] = useState("");
   const [email, setEmail] = useState("");
@@ -24,48 +24,54 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
-    e.preventDefault();
-    console.log("🚀 [Debug] Submit iniciado. Dados:", { firstName, lastName, email });
+  e.preventDefault();
+  setError(null);
+  
+  if (pwd.length < 6) {
+    setError("A palavra-passe deve ter pelo menos 6 caracteres.");
+    return;
+  }
+  if (pwd !== pwd2) {
+    setError("As palavras-passe não coincidem.");
+    return;
+  }
+  
+  setLoading(true);
+  
+  try {
+    // REGISTO
+    const res = await register({ 
+      nome: firstName, 
+      apelido: lastName, 
+      email, 
+      password: pwd 
+    });
     
-    setError(null);
-    
-    if (pwd.length < 6) {
-      setError("A palavra-passe deve ter pelo menos 6 caracteres.");
-      return;
-    }
-    if (pwd !== pwd2) {
-      setError("As palavras-passe não coincidem.");
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      const nomeCompleto = `${firstName} ${lastName}`.trim();
-      
-      // 🌟 DEBUG: Verificar se a função 'register' existe
-      console.log("🔍 [Debug] Função register existe:", typeof register);
-      
-      const res = await register({ nome: nomeCompleto, email, password: pwd });
-      
-      console.log("📡 [Debug] Resposta recebida do register:", res);
-      
-      if (!res || !res.ok) {
-        setError(res?.error || "Erro ao criar conta académica.");
-        return;
-      }
-      
-      toast.success("Conta de candidato criada com sucesso!");
-      navigate("/painel");
-      
-    } catch (err) {
-      // 🌟 ESTA É A LINHA MAIS IMPORTANTE
-      console.error("❌ [Debug] O erro aconteceu aqui:", err);
-      setError("Serviço de registo temporariamente indisponível.");
-    } finally {
+    if (!res || !res.ok) {
+      setError(res?.error || "Erro ao criar conta.");
       setLoading(false);
+      return;
     }
-  };
+    
+    // LOGIN AUTOMÁTICO (Auto-login)
+    const loginRes = await login(email, pwd);
+    
+    if (loginRes && loginRes.sucess) {
+      toast.success("Conta criada e sessão iniciada com sucesso!");
+      navigate("/painel");
+    } else {
+      // Caso o registo tenha funcionado mas o login automático falhe
+      toast.error("Conta criada! Por favor, faça login.");
+      navigate("/login");
+    }
+    
+  } catch (err) {
+    console.error("❌ Erro:", err);
+    setError("Serviço de registo temporariamente indisponível.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <PublicLayout>

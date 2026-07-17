@@ -18,7 +18,7 @@ import {
 
 export default function Panel() {
   const { t } = useI18n();
-  const { user, authenticated } = useContext(AuthContext); // Monitorização da sessão real
+  const { user, loading, authenticated } = useContext(AuthContext); // Monitorização da sessão real
   const { getApplicationForCurrent, createApplicationForCurrent } = useStore();
   const navigate = useNavigate();
 
@@ -39,6 +39,14 @@ export default function Panel() {
     createApplicationForCurrent();
     navigate("/candidatura/dados");
   };
+  
+  if (loading) {
+    return <div>A carregar os teus dados...</div>; // Ou um Spinner
+  }
+
+  if (!authenticated || !user) {
+    return <div>Sessão expirada. Por favor, faz login novamente.</div>;
+  }
 
   return (
     <PublicLayout>

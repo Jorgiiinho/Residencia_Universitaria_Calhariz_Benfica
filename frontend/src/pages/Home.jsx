@@ -1,12 +1,38 @@
-import { Link } from "react-router-dom"; 
+import { Link, useNavigate } from "react-router-dom"; 
 import { PublicLayout } from "@/components/PublicLayout"; 
 import { Button } from "@/components/ui/Button"; 
-import { useI18n } from "@/lib/providers";
+import { useI18n, useStore } from "@/lib/providers";
 import { GraduationCap, ShieldCheck, FileCheck2, ArrowRight } from "lucide-react";
+import { toast } from "sonner"; // Importação do Sonner
 
 export default function Home() {
   const { t } = useI18n();
-  
+  const { currentUser } = useStore(); // Obtemos o estado do utilizador
+  const navigate = useNavigate();
+
+  // Lógica para Iniciar Candidatura
+  const handleStartApplication = () => {
+    if (!currentUser) {
+      toast.error("Acesso restrito", {
+        description: "Para iniciar uma candidatura, precisa de criar conta ou iniciar sessão.",
+      });
+      return;
+    }
+    // Se estiver logado, navega para a página de candidatura
+    navigate("/painel"); 
+  };
+
+  // Lógica para o botão de Login
+  const handleLoginClick = () => {
+    if (currentUser) {
+      toast.info("Já está autenticado", {
+        description: "Já se encontra logado no portal.",
+      });
+      return;
+    }
+    navigate("/login");
+  };
+
   return (
     <PublicLayout>
       {/* Hero Section */}
@@ -14,27 +40,30 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,var(--color-cream),transparent_60%)]" />
         <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 md:grid-cols-2 items-center md:py-24">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-900">
-              <ShieldCheck className="h-3.5 w-3.5 text-amber-600" /> Candidaturas 2026/2027
+            <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-950">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-950" /> Candidaturas 2026/2027
             </span>
             <h1 className="mt-5 font-display text-4xl font-bold leading-tight text-emerald-950 sm:text-5xl">
               Residência Universitária de<br />
-              <span className="text-emerald-600">Calhariz-Benfica</span>
+              <span className="text-primary">Calhariz-Benfica</span>
             </h1>
-            <div className="gov-gold-rule mt-4 w-24 h-0.5 bg-amber-500" />
+            <div className="gov-gold-rule mt-4 w-24 h-0.5" />
             <p className="mt-6 max-w-xl text-base text-muted-foreground leading-relaxed">
               Portal oficial do Município da Ribeira Brava para a atribuição de vagas
               a estudantes deslocados naturais do concelho, com alojamento em Lisboa.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
-                <Link to="/register">
-                  Iniciar candidatura <ArrowRight className="h-4 w-4" />
-                </Link>
+              {/* Botão Iniciar Candidatura */}
+              <Button onClick={handleStartApplication} size="lg" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+                Iniciar candidatura <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button asChild size="lg" variant="outline" className="cursor-pointer">
-                <Link to="/login">{t("nav_login")}</Link>
-              </Button>
+              
+              {/* Botão Entrar: Só aparece se NÃO estiver logado */}
+              {!currentUser && (
+                <Button onClick={handleLoginClick} size="lg" variant="outline" className="cursor-pointer">
+                  {t("nav_login")}
+                </Button>
+              )}
             </div>
           </div>
           
@@ -42,8 +71,8 @@ export default function Home() {
             <div className="absolute -inset-4 rounded-2xl bg-linear-to-br from-emerald-500/20 via-amber-500/20 to-transparent blur-2xl" />
             <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
               <div className="gov-header-band px-6 py-4 bg-emerald-950 text-white">
-                <div className="text-[10px] uppercase tracking-widest opacity-80 font-bold text-amber-500">Processo</div>
-                <div className="font-display text-lg font-bold">Como candidatar-se</div>
+                <div className="text-xs uppercase tracking-widest opacity-80">Processo</div>
+                <div className="font-display text-xl font-bold">Como candidatar-se</div>
               </div>
               <ol className="divide-y divide-border">
                 {[
@@ -53,7 +82,7 @@ export default function Home() {
                   { n: 4, t: "Acompanhar o estado do processo online" }
                 ].map((s) => (
                   <li key={s.n} className="flex items-start gap-4 px-6 py-4 bg-background">
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-50 font-display text-sm font-bold text-emerald-600">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 font-display text-sm font-bold text-primary">
                       {s.n}
                     </div>
                     <p className="pt-1 text-sm text-emerald-950 font-medium">{s.t}</p>

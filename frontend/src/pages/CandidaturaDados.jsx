@@ -26,7 +26,7 @@ import { Plus, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { CandidaturaAPI } from "@/services/api";
 
-const KINSHIPS = ["Pai", "Mãe", "Irmão", "Irmã", "Avô/Avó", "Tio/A", "Outro"];
+const KINSHIPS = ["Pai", "Mãe", "Irmão", "Irmã", "Avô", "Avó", "Tio", "Tia", "Outro"];
 
 export default function WizardData() {
   const { t } = useI18n();

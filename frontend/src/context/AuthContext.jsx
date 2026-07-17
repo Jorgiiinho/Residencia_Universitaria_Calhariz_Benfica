@@ -25,8 +25,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Se quiseres ser extra cuidadoso:
+    const token = localStorage.getItem("token");
     setLoading(false);
-  }, []);
+}, []);
 
   const login = async (email, password) => {
     try {
