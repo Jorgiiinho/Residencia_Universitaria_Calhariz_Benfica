@@ -9,6 +9,7 @@ import { Toaster } from '@/components/ui/Sonner';
 import Home from './pages/Home';        
 import Register from './pages/Register';
 import Login from './pages/Login';
+import About from './pages/About';
 
 // Páginas da Área do Aluno (Candidato)
 import Painel from './pages/PainelAluno';
@@ -62,6 +63,7 @@ function App() {
             <AppProviders>
             <Routes>
               {/* Rotas Públicas */}
+              <Route path="/about" element={<About />} />
               <Route path="/" element={<Home />} /> 
               <Route path="/register" element={<Register />} />
               <Route path="/login" element={<Login />} />

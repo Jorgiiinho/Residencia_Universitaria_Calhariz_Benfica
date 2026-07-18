@@ -60,7 +60,7 @@ function PublicHeader() {
           <Link to="/" className="text-sm font-medium text-emerald-950 hover:text-emerald-600 transition-colors">
             {lang === "pt" ? "Início" : "Home"}
           </Link>
-          <Link to="/" className="text-sm font-medium text-emerald-950 hover:text-emerald-600 transition-colors">
+          <Link to="/about" className="text-sm font-medium text-emerald-950 hover:text-emerald-600 transition-colors">
             {lang === "pt" ?  "Sobre" : "About"}
           </Link>
 
