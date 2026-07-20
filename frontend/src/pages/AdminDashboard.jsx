@@ -7,6 +7,7 @@ import { useStore, statusMeta, useI18n } from "@/lib/providers";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
 import {
   Table,
   TableBody,
@@ -15,54 +16,152 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/Table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/Dialog";
 
-import { Users, ClipboardList, CheckCircle2, XCircle, Search, Eye } from "lucide-react";
+import { Users, ClipboardList, CheckCircle2, XCircle, Search, Eye, MessageSquare, Send, User, Calendar } from "lucide-react";
 import { AdminAPI } from "@/services/api";
+import { toast } from "sonner";
 
 export default function AdminDashboard() {
   const { t } = useI18n();
-  const { store } = useStore();
-  const { user, authenticated } = useContext(AuthContext); // 🌟 Lendo a sessão real do Município
-  const navigate = useNavigate(); // Hook oficial de navegação do React Router Dom
+  const { store, updateApplication } = useStore();
+  const { user, authenticated } = useContext(AuthContext); // Sessão real do utilizador
+  const navigate = useNavigate();
   
   const [q, setQ] = useState("");
   const [remoteApps, setRemoteApps] = useState(null);
 
-  // Segurança de Rota Interna usando o teu AuthContext real
+  // Estado para a Modal de Observações
+  const [obsApp, setObsApp] = useState(null); // Candidatura selecionada para ver/escrever obs
+  const [novaObservacao, setNovaObservacao] = useState("");
+  const [savingObs, setSavingObs] = useState(false);
+
+  // Segurança de Rota
   useEffect(() => {
     if (!authenticated) {
       navigate("/login");
-    } else if (user?.tipo !== "admin") { // No teu App.jsx usas "admin" para a câmara municipal
+    } else if (user?.tipo !== "admin") {
       navigate("/painel");
     }
   }, [user, authenticated, navigate]);
 
-  // Chamada Real à API das candidaturas da Ribeira Brava
+  // Chamada à API para listar candidaturas
   useEffect(() => {
     if (!authenticated || user?.tipo !== "admin") return;
     
     AdminAPI.listarCandidaturas()
-      .then(({ data }) => setRemoteApps(Array.isArray(data) ? data : data?.candidaturas ?? null))
-      .catch((err) => console.warn("[api] listar candidaturas falhou", err?.message));
+      .then((res) => {
+        const data = res?.data;
+        if (Array.isArray(data)) {
+          setRemoteApps(data);
+        } else if (Array.isArray(data?.candidaturas)) {
+          setRemoteApps(data.candidaturas);
+        } else if (Array.isArray(data?.data)) {
+          setRemoteApps(data.data);
+        } else if (Array.isArray(data?.applications)) {
+          setRemoteApps(data.applications);
+        } else {
+          setRemoteApps([]);
+        }
+      })
+      .catch((err) => {
+        console.error("❌ [AdminDashboard API] Erro ao listar candidaturas:", err);
+        setRemoteApps(null);
+      });
   }, [user, authenticated]);
 
-  const apps = remoteApps ?? store.applications;
+  const apps = (remoteApps && remoteApps.length > 0) 
+    ? remoteApps 
+    : (store?.applications ?? []);
 
   const metrics = useMemo(
     () => ({
       total: apps.length,
-      pending: apps.filter((a) => ["aguarda_validacao", "em_analise", "incompleta", "pendente_correcao"].includes(a.status)).length,
-      approved: apps.filter((a) => a.status === "aprovada").length,
-      rejected: apps.filter((a) => a.status === "rejeitada").length
+      pending: apps.filter((a) => ["aguarda_validacao", "em_analise", "incompleta", "pendente_correcao", "rascunho"].includes(a?.status)).length,
+      approved: apps.filter((a) => a?.status === "aprovada").length,
+      rejected: apps.filter((a) => a?.status === "rejeitada").length
     }),
     [apps]
   );
 
+  // Extração universal de dados para a tabela
+  const extractAppData = (a, usersList) => {
+    const currentUserId = a.userId || a.user_id;
+    const u = usersList?.find((x) => String(x.id) === String(currentUserId));
+
+    let personal = {};
+    let academic = {};
+    try { personal = typeof a.personal === 'string' ? JSON.parse(a.personal || '{}') : (a.personal || {}); } catch (e) {}
+    try { academic = typeof a.academic === 'string' ? JSON.parse(a.academic || '{}') : (a.academic || {}); } catch (e) {}
+
+    const firstName = personal.firstName || personal.nome || a.first_name || a.firstName || a.user_nome || u?.firstName || u?.nome || "";
+    const lastName = personal.lastName || personal.apelido || a.last_name || a.lastName || a.user_apelido || u?.lastName || u?.apelido || "";
+    
+    let candidateName = `${firstName} ${lastName}`.trim() || a.email || u?.email || "Candidato";
+    const course = personal.course || personal.curso || academic.course || academic.curso || a.course || a.curso || "—";
+    const academicYear = personal.academicYear || personal.anoLectivo || academic.academicYear || a.academicYear || a.anoLectivo || "—";
+
+    return { candidateName, course, academicYear };
+  };
+
   const filtered = apps.filter((a) => {
-    const u = store.users.find((x) => x.id === a.userId);
-    const name = `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.toLowerCase();
-    return !q || name.includes(q.toLowerCase()) || a.id.toLowerCase().includes(q.toLowerCase()) || (a.personal.course ?? "").toLowerCase().includes(q.toLowerCase());
+    const { candidateName, course } = extractAppData(a, store?.users);
+    const processId = String(a.id || a.candidatura_id || "").toLowerCase();
+    const query = q.toLowerCase();
+
+    return !q || candidateName.toLowerCase().includes(query) || processId.includes(query) || course.toLowerCase().includes(query);
   });
+
+  // Função para Guardar uma Nova Observação
+  const handleAdicionarObservacao = async () => {
+    if (!novaObservacao.trim() || !obsApp) return;
+
+    setSavingObs(true);
+    const adminNome = `${user?.nome || user?.firstName || 'Admin'} ${user?.apelido || user?.lastName || ''}`.trim();
+    const dataHora = new Date().toLocaleString("pt-PT");
+
+    // Formato da entrada de observação
+    const novaEntrada = `[${dataHora}] ${adminNome}: ${novaObservacao.trim()}`;
+
+    // Concatena com as observações já existentes
+    const observacoesExistentes = obsApp.observacoes || "";
+    const observacoesAtualizadas = observacoesExistentes 
+      ? `${observacoesExistentes}\n\n${novaEntrada}` 
+      : novaEntrada;
+
+    try {
+      await AdminAPI.atualizarEstadoCandidatura(
+        obsApp.id, 
+        obsApp.status || "em_analise", 
+        observacoesAtualizadas
+      );
+
+      // Atualiza o estado localmente
+      const appAtualizada = { ...obsApp, observacoes: observacoesAtualizadas };
+      setObsApp(appAtualizada);
+      
+      if (remoteApps) {
+        setRemoteApps(remoteApps.map((a) => String(a.id) === String(obsApp.id) ? appAtualizada : a));
+      }
+      updateApplication(obsApp.id, { observacoes: observacoesAtualizadas });
+
+      setNovaObservacao("");
+      toast.success("Observação registada com sucesso!");
+    } catch (err) {
+      console.error("❌ Erro ao guardar observação:", err);
+      toast.error("Não foi possível guardar a observação no servidor.");
+    } finally {
+      setSavingObs(false);
+    }
+  };
+
+  const isAdmin = user?.tipo === "admin";
 
   return (
     <AdminShell title={t("admin_dashboard")}>
@@ -113,26 +212,41 @@ export default function AdminDashboard() {
                     </TableCell>
                   </TableRow>
                 )}
-                {filtered.map((a) => {
-                  const u = store.users.find((x) => x.id === a.userId);
-                  const meta = statusMeta(a.status);
+                {filtered.map((a, index) => {
+                  const { candidateName, course, academicYear } = extractAppData(a, store?.users);
+                  const meta = statusMeta(a.status || "rascunho") || { tone: "neutral", label: a.status || "Sem Estado" };
+                  const appId = a.id ?? a.candidatura_id;
+
                   return (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                    <TableRow key={appId ? String(appId) : `app-${index}`}>
+                      <TableCell className="font-mono text-xs">{appId || "—"}</TableCell>
                       <TableCell className="font-medium">
-                        {u?.firstName} {u?.lastName}
+                        {candidateName}
                       </TableCell>
-                      <TableCell>{a.personal.course ?? "\u2014"}</TableCell>
-                      <TableCell>{a.personal.academicYear ?? "\u2014"}</TableCell>
+                      <TableCell>{course}</TableCell>
+                      <TableCell>{academicYear}</TableCell>
                       <TableCell>
                         <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline" className="gap-1.5 cursor-pointer">
-                          <Link to={`/admin/candidatura/${a.id}`}>
-                            <Eye className="h-3.5 w-3.5" /> {t("view_process")}
-                          </Link>
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {/* 🌟 BOTÃO OBSERVAÇÕES */}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="gap-1.5 cursor-pointer border-slate-300 hover:bg-slate-100"
+                            onClick={() => setObsApp(a)}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-slate-600" /> Observações
+                          </Button>
+
+                          {/* BOTÃO VER PROCESSO */}
+                          <Button asChild size="sm" variant="outline" className="gap-1.5 cursor-pointer">
+                            <Link to={`/admin/candidatura/${appId}`}>
+                              <Eye className="h-3.5 w-3.5" /> {t("view_process")}
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -142,6 +256,72 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 🌟 MODAL DE OBSERVAÇÕES DO PROCESSO */}
+      <Dialog open={!!obsApp} onOpenChange={(o) => !o && setObsApp(null)}>
+        <DialogContent className="max-w-lg bg-background border border-border">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-950 font-display flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-emerald-600" /> Observações — Processo #{obsApp?.id}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            {/* Histórico de Notas */}
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Histórico de Notas Internas
+            </div>
+            
+            <div className="max-h-60 overflow-y-auto rounded-md border border-border bg-slate-50 p-3 space-y-2">
+              {obsApp?.observacoes ? (
+                obsApp.observacoes.split("\n\n").map((nota, idx) => (
+                  <div key={idx} className="bg-white p-2.5 rounded border border-slate-200 text-xs shadow-2xs">
+                    <p className="whitespace-pre-wrap text-slate-800 font-medium">{nota}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  Ainda não existem observações registadas neste processo.
+                </p>
+              )}
+            </div>
+
+            {/* Campo de Escrita - APENAS PARA ADMINISTRADORES */}
+            {isAdmin ? (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <label className="text-xs font-semibold uppercase tracking-wider text-emerald-950">
+                  Adicionar Nova Observação (Visível para Administradores)
+                </label>
+                <Textarea
+                  value={novaObservacao}
+                  onChange={(e) => setNovaObservacao(e.target.value)}
+                  placeholder="Escreva notas técnicas ou apontamentos sobre o candidato..."
+                  rows={3}
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
+                🔒 Apenas administradores têm permissão para adicionar novas observações.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setObsApp(null)} className="cursor-pointer">
+              Fechar
+            </Button>
+            {isAdmin && (
+              <Button 
+                onClick={handleAdicionarObservacao} 
+                disabled={savingObs || !novaObservacao.trim()}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              >
+                <Send className="h-3.5 w-3.5" /> Adicionar Nota
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 }
@@ -152,7 +332,7 @@ function MetricCard({ icon: Icon, label, value, tone }) {
     warn: "bg-status-warn/10 text-status-warn",
     success: "bg-status-success/10 text-status-success",
     danger: "bg-status-danger/10 text-status-danger"
-  }[tone];
+  }[tone] || "bg-muted text-foreground";
 
   return (
     <Card>

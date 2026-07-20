@@ -1,5 +1,5 @@
 SET FOREIGN_KEY_CHECKS = 0;
---  TABELA USER (Dados gerais e credenciais de login)
+--  TABELA USER 
 CREATE TABLE IF NOT EXISTS mydb.user (
   id INT NOT NULL AUTO_INCREMENT,
   nome VARCHAR(45) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS mydb.user (
   PRIMARY KEY (id),
   UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE
 ) ENGINE = InnoDB;
---  TABELA CANDIDATO (Dados pessoais e académicos exclusivos do Aluno)
+--  TABELA CANDIDATO
 CREATE TABLE IF NOT EXISTS mydb.candidato (
   id INT NOT NULL AUTO_INCREMENT,
   user_id INT NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS mydb.candidato (
   UNIQUE INDEX nif_UNIQUE (nif ASC) VISIBLE,
   CONSTRAINT fk_candidato_user1 FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
---  TABELA ADMIN (Vínculo do Staff da Câmara - Sem dados redundantes)
+--  TABELA ADMIN 
 CREATE TABLE IF NOT EXISTS mydb.admin (
   id INT NOT NULL AUTO_INCREMENT,
   user_id INT NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS mydb.admin (
   UNIQUE INDEX user_id_admin_UNIQUE (user_id ASC) VISIBLE,
   CONSTRAINT fk_admin_user FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
--- TABELA AGREGADO FAMILIAR (Com ID corrigido e sem o UNIQUE do NIF para suportar irmãos)
+-- TABELA AGREGADO FAMILIAR
 CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
   id INT NOT NULL AUTO_INCREMENT,
   candidato_id INT NOT NULL,

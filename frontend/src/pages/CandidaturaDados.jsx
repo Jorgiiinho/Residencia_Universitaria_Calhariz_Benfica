@@ -267,12 +267,14 @@ export default function WizardData() {
               </Field>
               
               <Field label={t("freguesia")} required> 
-                <Input 
-                  maxLength={50} 
-                  placeholder="Ex: Ribeira Brava"
-                  value={personal.freguesia ?? ""} 
-                  onChange={(e) => setP("freguesia", e.target.value)} 
-                />
+              <Select value={personal.freguesia ?? ""} onValueChange={(v) => setP("freguesia", v)}>
+                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    {["Campanário", "Ribeira Brava", "Tabua", "Serra de Água"].map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
             </div>
 
@@ -312,7 +314,7 @@ export default function WizardData() {
                 <Select value={personal.academicYear ?? ""} onValueChange={(v) => setP("academicYear", v)}>
                   <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent>
-                    {["1º ano", "2º ano", "3º ano", "4º ano", "5º ano", "Mestrado"].map((y) => (
+                    {["1º ano", "2º ano", "3º ano", "4º ano", "5º ano"].map((y) => (
                       <SelectItem key={y} value={y}>{y}</SelectItem>
                     ))}
                   </SelectContent>
