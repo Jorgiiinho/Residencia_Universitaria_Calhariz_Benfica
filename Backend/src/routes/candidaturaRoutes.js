@@ -1,15 +1,15 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const candidaturaController = require("../controllers/candidaturaController");
-const loginExigido = require('../middlewares/authMiddleware');
+const candidaturaController = require('../controllers/candidaturaController');
+const { verificarToken } = require('../middlewares/authMiddleware');
 
-// Criar ou Atualizar rascunho de candidatura (POST /api/candidaturas)
-router.post('/', loginExigido, candidaturaController.criarOuAtualizarCandidatura);
+// Todas as rotas de candidatura exigem autenticação
+router.use(verificarToken);
 
-// Obter a candidatura do estudante autenticado (GET /api/candidaturas/me)
-router.get('/me', loginExigido, candidaturaController.obterMinhaCandidatura);
-
-//Submeter uma candidatura definitiva (POST /api/candidaturas/:id/submeter)
-router.post('/:id/submeter', loginExigido, candidaturaController.submeterCandidatura);
+// Funções ajustadas com os nomes exatos do candidaturaController.js
+router.get('/me', candidaturaController.obterMinhaCandidatura);
+router.post('/', candidaturaController.criarOuAtualizarCandidatura);
+router.post('/agregado', candidaturaController.adicionarAgregado || ((req, res) => res.status(501).json({ error: "Não implementado" })));
+router.post('/:id/submeter', candidaturaController.submeterCandidatura);
 
 module.exports = router;

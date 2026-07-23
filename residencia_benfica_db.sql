@@ -1,5 +1,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
---  TABELA USER 
+-- -----------------------------------------------------
+-- 1. TABELA USER 
+-- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.user (
   id INT NOT NULL AUTO_INCREMENT,
   nome VARCHAR(45) NOT NULL,
@@ -7,11 +9,13 @@ CREATE TABLE IF NOT EXISTS mydb.user (
   email VARCHAR(45) NOT NULL,
   password VARCHAR(255) NOT NULL,
   criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  tipo ENUM('admin', 'candidato') NOT NULL DEFAULT 'candidato',
+  tipo ENUM('admin', 'candidato', 'superadmin') NOT NULL DEFAULT 'candidato',
   PRIMARY KEY (id),
   UNIQUE INDEX email_UNIQUE (email ASC) VISIBLE
 ) ENGINE = InnoDB;
---  TABELA CANDIDATO
+-- -----------------------------------------------------
+-- 2. TABELA CANDIDATO 
+-- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.candidato (
   id INT NOT NULL AUTO_INCREMENT,
   user_id INT NOT NULL,
@@ -30,13 +34,14 @@ CREATE TABLE IF NOT EXISTS mydb.candidato (
   ano_letivo VARCHAR(20) NOT NULL,
   estado ENUM(
     'rascunho',
+    'incompleta',
     'aguarda_documentos',
     'aguarda_validacao',
     'em_analise',
     'pendente_correcao',
-    'aprovado',
-    'rejeitado',
-    'arquivado',
+    'aprovada',
+    'rejeitada',
+    'arquivada',
     'desistencia'
   ) NOT NULL DEFAULT 'rascunho',
   PRIMARY KEY (id),
@@ -45,7 +50,9 @@ CREATE TABLE IF NOT EXISTS mydb.candidato (
   UNIQUE INDEX nif_UNIQUE (nif ASC) VISIBLE,
   CONSTRAINT fk_candidato_user1 FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
---  TABELA ADMIN 
+-- -----------------------------------------------------
+-- 3. TABELA ADMIN 
+-- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.admin (
   id INT NOT NULL AUTO_INCREMENT,
   user_id INT NOT NULL,
@@ -53,7 +60,9 @@ CREATE TABLE IF NOT EXISTS mydb.admin (
   UNIQUE INDEX user_id_admin_UNIQUE (user_id ASC) VISIBLE,
   CONSTRAINT fk_admin_user FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
--- TABELA AGREGADO FAMILIAR
+-- -----------------------------------------------------
+-- 4. TABELA AGREGADO FAMILIAR
+-- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
   id INT NOT NULL AUTO_INCREMENT,
   candidato_id INT NOT NULL,
@@ -77,20 +86,20 @@ CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
   INDEX fk_table1_candidato1_idx (candidato_id ASC) VISIBLE,
   CONSTRAINT fk_table1_candidato1 FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
---  TABELA DOCUMENTOS (Controlo de ficheiros PDF)
+-- -----------------------------------------------------
+-- 5. TABELA DOCUMENTOS
+-- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.documentos (
   id INT NOT NULL AUTO_INCREMENT,
   candidato_id INT NOT NULL,
   tipo_documento ENUM(
-    'Formulario_candidatura',
     'CC_frente',
     'CC_verso',
-    'Declaracao_Residencia',
-    'Declaracao_Domicilio_Fiscal',
+    'Declaracao_Residencia_Fiscal',
     'Comprovativo_Inscricao_Matricula',
+    'IRS_Nota_Liquidacao',
     'Documento_bolsa_estudo',
-    'IRS',
-    'Comprovativos_Rendimento_Anuais'
+    'Comprovativo_rendimento_atual'
   ) NOT NULL,
   motivo VARCHAR(255) NULL,
   url_ficheiro VARCHAR(255) NOT NULL,
@@ -98,5 +107,25 @@ CREATE TABLE IF NOT EXISTS mydb.documentos (
   estado ENUM('pendente', 'aprovado', 'rejeitado') NOT NULL DEFAULT 'pendente',
   INDEX fk_table2_candidato1_idx (candidato_id ASC) VISIBLE,
   CONSTRAINT fk_table2_candidato1 FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+-- -----------------------------------------------------
+-- 6. TABELA CONFIGURACAO 
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS mydb.configuracao (
+  chave VARCHAR(50) NOT NULL,
+  valor VARCHAR(255) NOT NULL,
+  atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (chave)
+) ENGINE = InnoDB;
+-- -----------------------------------------------------
+-- 7. TABELA FAQ
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS mydb.faq (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  categoria VARCHAR(50) NOT NULL DEFAULT 'candidatura',
+  pergunta TEXT NOT NULL,
+  resposta TEXT NOT NULL,
+  ordem INT DEFAULT 0,
+  criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE = InnoDB;
 SET FOREIGN_KEY_CHECKS = 1;

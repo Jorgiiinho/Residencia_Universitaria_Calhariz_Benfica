@@ -5,6 +5,7 @@ import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { useI18n, useStore } from "@/lib/providers";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
@@ -402,9 +403,30 @@ export default function WizardData() {
                 </TableBody>
               </Table>
             </div>
+            <div className="mt-6 space-y-4 rounded-lg border border-border p-4 bg-muted/20">
+            <div className="flex items-start gap-3">
+              <Checkbox id="decl1" required className="mt-0.5" />
+              <Label htmlFor="decl1" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                Declaro que as informações prestadas neste formulário são verdadeiras e completas, e que estou ciente de que qualquer falsidade ou omissão pode resultar na exclusão da minha candidatura. <span className="text-red-500 font-bold">*</span>
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Checkbox id="decl2" required className="mt-0.5" />
+              <Label htmlFor="decl2" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                Declaro que tomei conhecimento das condições e atribuição de vagas de acordo com as normas. <span className="text-red-500 font-bold">*</span>
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Checkbox id="decl3" className="mt-0.5" />
+              <Label htmlFor="decl3" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                Os dados pessoais recolhidos no âmbito do procedimento serão tratados exclusivamente para efeitos de instrução, análise e decisão das candidaturas, nos termos do Regulamento (UE) 2016/679 do Parlamento Europeu e do Conselho, de 27 de abril de 2016, relativo à proteção das pessoas singulares no que diz respeito ao tratamento de dados pessoais e à livre circulação desses dados, e demais legislação aplicável.
+              </Label>
+            </div>
+          </div>
           </CardContent>
         </Card>
-
         <div className="mt-6 flex justify-between">
           <Button variant="outline" onClick={() => navigate("/painel")} className="cursor-pointer">
             {t("back")}

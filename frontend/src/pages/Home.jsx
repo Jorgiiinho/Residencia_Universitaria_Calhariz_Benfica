@@ -1,28 +1,54 @@
 import { Link, useNavigate } from "react-router-dom"; 
+import { useEffect, useState } from "react";
 import { PublicLayout } from "@/components/PublicLayout"; 
 import { Button } from "@/components/ui/Button"; 
 import { useI18n, useStore } from "@/lib/providers";
 import { GraduationCap, ShieldCheck, FileCheck2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { ConfigAPI } from "@/services/api";
 
 export default function Home() {
   const { t } = useI18n();
   const { currentUser } = useStore(); 
   const navigate = useNavigate();
 
+  // 🌟 Estado dinâmico do período de candidaturas
+  const [periodo, setPeriodo] = useState({
+    candidaturasAbertas: true,
+    anoLetivo: "2026/2027"
+  });
+
+  useEffect(() => {
+    ConfigAPI.obterEstadoPeriodo()
+      .then((res) => {
+        if (res.data?.ok) {
+          setPeriodo({
+            candidaturasAbertas: res.data.candidaturasAbertas,
+            anoLetivo: res.data.anoLetivo || "2026/2027"
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Lógica para Iniciar Candidatura
   const handleStartApplication = () => {
+    if (!periodo.candidaturasAbertas) {
+      toast.error("Candidaturas Encerradas", {
+        description: `O período de candidaturas para o ano letivo ${periodo.anoLetivo} encontra-se encerrado.`,
+      });
+      return;
+    }
+
     if (!currentUser) {
       toast.error("Acesso restrito", {
         description: "Para iniciar uma candidatura, precisa de ter sessão iniciada.",
       });
       return;
     }
-    // Se estiver logado, navega para a página de candidatura
     navigate("/painel"); 
   };
 
-  // Lógica para o botão de Login
   const handleLoginClick = () => {
     if (currentUser) {
       toast.info("Já está autenticado", {
@@ -40,9 +66,14 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,var(--color-cream),transparent_60%)]" />
         <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 md:grid-cols-2 items-center md:py-24">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-950">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-950" /> Candidaturas 2026/2027
+            {/* 🌟 CRACHÁ DINÂMICO DE ANO LETIVO E ESTADO */}
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${periodo.candidaturasAbertas ? "border-gold/40 bg-gold/10 text-emerald-950" : "border-red-300 bg-red-50 text-red-800"}`}>
+              <ShieldCheck className="h-3.5 w-3.5" /> 
+              {periodo.candidaturasAbertas 
+                ? `Candidaturas ${periodo.anoLetivo}` 
+                : `Candidaturas ${periodo.anoLetivo} (Fechadas)`}
             </span>
+
             <h1 className="mt-5 font-display text-4xl font-bold leading-tight text-emerald-950 sm:text-5xl">
               Residência Universitária de<br />
               <span className="text-primary">Calhariz-Benfica</span>
@@ -54,11 +85,14 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {/* Botão Iniciar Candidatura */}
-              <Button onClick={handleStartApplication} size="lg" className="gap-2r">
-                Iniciar candidatura <ArrowRight className="h-4 w-4" />
+              <Button 
+                onClick={handleStartApplication} 
+                size="lg" 
+                className={`gap-2 ${!periodo.candidaturasAbertas ? "opacity-80 bg-slate-700 hover:bg-slate-800" : ""}`}
+              >
+                {periodo.candidaturasAbertas ? "Iniciar candidatura" : "Candidaturas Encerradas"} <ArrowRight className="h-4 w-4" />
               </Button>
               
-              {/* Botão Entrar: Só aparece se NÃO estiver logado */}
               {!currentUser && (
                 <Button onClick={handleLoginClick} size="lg" variant="outline" className="cursor-pointer">
                   {t("nav_login")}
@@ -101,7 +135,6 @@ export default function Home() {
             <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-emerald-950 sm:text-3xl">
               Um processo simples, transparente e seguro
             </h2>
-            <p className="mt-4 text-sm text-muted-foreground"></p>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {[
@@ -118,7 +151,7 @@ export default function Home() {
               {
                 icon: ShieldCheck,
                 title: "Acompanhamento em tempo real",
-                text: "Consulte o estado do processo e corrigi documentos rejeitados sem começar de novo."
+                text: "Consulte o estado do processo e corrija documentos rejeitados sem começar de novo."
               }
             ].map((f) => (
               <div key={f.title} className="rounded-xl border border-border bg-card p-6 shadow-xs">

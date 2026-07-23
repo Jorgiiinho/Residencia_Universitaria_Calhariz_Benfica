@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/Dialog";
 import { toast } from "sonner";
-import { Mail, KeyRound, ArrowLeft } from "lucide-react";
+import { Mail, KeyRound } from "lucide-react";
 import { AuthAPI } from "@/services/api";
 
 export default function LoginPage() {
@@ -38,19 +38,21 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
 
-  // Redirecionamento automático caso o utilizador já tenha sessão ativa
+  // 💡 REDIRECIONAMENTO CORRIGIDO: Suporta 'admin' E 'superadmin' sem loops
   useEffect(() => {
     if (authenticated && user) {
-      if (user.tipo === "admin") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/painel");
-      }
+      const eAdministrador = user.tipo === "admin" || user.tipo === "superadmin";
+      const rotaDestino = eAdministrador ? "/admin/dashboard" : "/painel";
+      
+      // { replace: true } impede a acumulação de histórico e evita loops
+      navigate(rotaDestino, { replace: true });
     }
   }, [authenticated, user, navigate]);
 
   const submit = async (e) => {
     e.preventDefault();
+    if (loading) return; // Evita duplo clique
+
     setError(null);
     setNeedsVerification(false);
     setLoading(true);
@@ -60,10 +62,16 @@ export default function LoginPage() {
       toast.success("Login efetuado com sucesso!");
     } catch (err) {
       console.error("Erro ao fazer login:", err);
-      const msg = err?.response?.data?.message || err?.response?.data?.erro || "Credenciais inválidas ou erro no servidor.";
+      
+      // Extração robusta das mensagens de erro vindas do Backend
+      const msg = 
+        err?.response?.data?.error || 
+        err?.response?.data?.message || 
+        err?.response?.data?.erro || 
+        "Credenciais inválidas ou erro no servidor.";
       
       // Deteta se o erro é por conta não verificada
-      if (msg.toLowerCase().includes("verific") || err?.response?.data?.naoVerificado) {
+      if (typeof msg === "string" && (msg.toLowerCase().includes("verific") || err?.response?.data?.naoVerificado)) {
         setNeedsVerification(true);
       }
       
@@ -91,7 +99,7 @@ export default function LoginPage() {
       setForgotOpen(false);
       setResetEmail("");
     } catch (err) {
-      const msg = err?.response?.data?.message || "Não foi possível enviar o e-mail de recuperação.";
+      const msg = err?.response?.data?.error || err?.response?.data?.message || "Não foi possível enviar o e-mail de recuperação.";
       toast.error(msg);
     } finally {
       setResetLoading(false);
@@ -121,7 +129,7 @@ export default function LoginPage() {
   return (
     <PublicLayout>
       <div className="container max-w-md mx-auto py-12 px-4">
-        <Card className="border-border">
+        <Card className="border-border shadow-md">
           <CardHeader className="text-center space-y-1">
             <CardTitle className="font-display text-2xl font-bold text-emerald-950">
               {t("nav_login") || "Iniciar Sessão"}
@@ -142,7 +150,7 @@ export default function LoginPage() {
                       size="sm" 
                       onClick={handleResendVerification}
                       disabled={resendingEmail}
-                      className="w-fit text-xs gap-1 border-red-300 hover:bg-red-50"
+                      className="w-fit text-xs gap-1 border-red-300 hover:bg-red-50 cursor-pointer"
                     >
                       <Mail className="h-3 w-3" />
                       {resendingEmail ? "A enviar..." : "Reenviar e-mail de verificação"}
@@ -192,7 +200,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-bold"
                 size="lg"
                 disabled={loading}
               >
@@ -239,7 +247,7 @@ export default function LoginPage() {
               <Button type="button" variant="outline" onClick={() => setForgotOpen(false)} className="cursor-pointer">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={resetLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">
+              <Button type="submit" disabled={resetLoading} className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-bold">
                 {resetLoading ? "A enviar..." : "Enviar Ligação"}
               </Button>
             </DialogFooter>

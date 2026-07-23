@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// Suporte para variável de ambiente (.env) com fallback automático
 const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
@@ -8,7 +7,6 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Interceptor de Pedidos: Injeta automaticamente o Token JWT nas requisições
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
@@ -22,7 +20,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor de Respostas: Trata a expiração de sessão (Erro 401)
 api.interceptors.response.use(
   (response) => response,
   (err) => {
@@ -36,17 +33,31 @@ api.interceptors.response.use(
 
 export default api;
 
-/* --------- Endpoints (Helpers de Integração da API) --------- */
+/* --------- Endpoints --------- */
 
 export const AuthAPI = {
-  login: (email, password) => api.post("/auth/login", { email, password }),
+  login: (emailOrObject, password) => {
+    if (typeof emailOrObject === "object") {
+      return api.post("/auth/login", emailOrObject);
+    }
+    return api.post("/auth/login", { email: emailOrObject, password });
+  },
   register: (payload) => api.post("/auth/register", payload),
   me: () => api.get("/auth/me"),
+  recuperarPassword: (email) => api.post("/auth/recuperar-password", { email }),
+  reenviarVerificacao: (email) => api.post("/auth/reenviar-verificacao", { email }),
+  redefinirPassword: (token, password) => api.post("/auth/redefinir-password", { token, password })
+};
+
+export const ConfigAPI = {
+  // Endpoint público para consultar o período ativo
+  obterEstadoPeriodo: () => api.get("/admin/periodo-candidaturas/estado"),
 };
 
 export const CandidaturaAPI = {
   obterMinha: () => api.get("/candidaturas/me"),
   criarOuAtualizar: (dados) => api.post("/candidaturas", dados),
+  guardarRascunho: (dados) => api.post("/candidaturas", dados),
   adicionarAgregado: (familiares) => api.post("/candidaturas/agregado", { familiares }),
   submeter: (id) => api.post(`/candidaturas/${id}/submeter`),
 };
@@ -68,31 +79,62 @@ export const DocumentosAPI = {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
-  // 🌟 Blindagem de Nomes para Estado de Documento
   atualizarEstado: (documentoId, estado, motivo) =>
     api.put(`/documentos/${documentoId}/estado`, {
-      estado: estado,
+      estado,
       status: estado,
-      motivo: motivo,
+      motivo,
       rejectionReason: motivo,
       motivo_rejeicao: motivo,
     }),
 };
 
-export const AdminAPI = {
-  listarCandidaturas: (estado) =>
-    api.get("/admin/candidaturas", { params: estado ? { estado, status: estado } : {} }),
-  obterCandidatura: (id) => api.get(`/admin/candidaturas/${id}`),
+export const FaqAPI = {
+  listar: () => api.get("/admin/faqs"),
+  criar: (payload) => api.post("/admin/faqs", payload),
+  atualizar: (id, payload) => api.put(`/admin/faqs/${id}`, payload),
+  eliminar: (id) => api.delete(`/admin/faqs/${id}`)
+};
 
-  // 🌟 Blindagem de Nomes para Alteração do Estado da Candidatura (Envia todas as variantes)
+export const AdminAPI = {
+  // Aceita quer string de estado quer objeto de query { apenas_atual: "true", ano_letivo: "..." }
+  listarCandidaturas: (params) =>
+    api.get("/admin/candidaturas", { params: typeof params === "string" ? { estado: params } : params }),
+  
+  obterAnosLetivos: () => api.get("/admin/anos-letivos"),
+  obterCandidatura: (id) => api.get(`/admin/candidaturas/${id}`),
+  obterDetalhes: (id) => api.get(`/admin/candidaturas/${id}`),
+
   atualizarEstadoCandidatura: (id, estado, observacoes) =>
     api.put(`/admin/candidaturas/${id}/estado`, {
-      estado: estado,
+      estado,
       status: estado,
-      observacoes: observacoes,
+      observacoes,
+      mensagem: observacoes,
+      notas: observacoes,
+    }),
+  atualizarEstado: (id, estado, observacoes) =>
+    api.put(`/admin/candidaturas/${id}/estado`, {
+      estado,
+      status: estado,
+      observacoes,
       mensagem: observacoes,
       notas: observacoes,
     }),
 
-  criarFuncionario: (payload) => api.post("/admin/funcionarios", payload),
+  atualizarEstadoDocumento: (docId, estado, motivo) =>
+    api.put(`/admin/documentos/${docId}/estado`, {
+      estado,
+      status: estado,
+      motivo,
+      rejectionReason: motivo,
+    }),
+
+  criarFuncionario: (payload) => api.post("/admin/criar-admin", payload),
+  criarAdmin: (payload) => api.post("/admin/criar-admin", payload),
+  
+  togglePeriodoCandidaturas: (candidaturasAbertas, anoLetivo) =>
+    api.put("/admin/periodo-candidaturas", { candidaturasAbertas, anoLetivo }),
+
+  
 };

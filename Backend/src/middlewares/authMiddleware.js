@@ -1,14 +1,14 @@
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../../config/env');
 
-module.exports = (req, res, next) => {
+// Middleware principal de verificação de Token
+const verificarToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
     return res.status(401).json({ error: "Acesso negado: Token não fornecido." });
   }
 
-  // O formato padrão é "Bearer <TOKEN>"
   const partes = authHeader.split(' ');
 
   if (partes.length !== 2 || partes[0] !== 'Bearer') {
@@ -18,14 +18,12 @@ module.exports = (req, res, next) => {
   const token = partes[1];
 
   try {
-    // Verifica se o token é legítimo
     const decodificado = jwt.verify(token, jwtSecret);
 
-    // Injeta os dados no pedido para serem consumidos pelos controllers e pelo adminMiddleware
     req.userId = decodificado.id;
     req.user = {
       id: decodificado.id,
-      tipo: decodificado.tipo // 'admin' ou 'candidato'
+      tipo: decodificado.tipo
     };
 
     return next();
@@ -33,3 +31,27 @@ module.exports = (req, res, next) => {
     return res.status(401).json({ error: "Token inválido ou expirado." });
   }
 };
+
+// Middleware para verificar se o utilizador é Administrador
+const eAdmin = (req, res, next) => {
+  if (req.user?.tipo !== 'admin' && req.user?.tipo !== 'superadmin') {
+    return res.status(403).json({ error: "Acesso negado: Requer privilégios de Administrador." });
+  }
+  return next();
+};
+
+// Middleware para verificar se o utilizador é Super Administrador
+const eSuperAdmin = (req, res, next) => {
+  if (req.user?.tipo !== 'superadmin') {
+    return res.status(403).json({ error: "Acesso negado: Requer privilégios de Super Administrador." });
+  }
+  return next();
+};
+
+//  Permite 'const loginExigido = require(...)'
+// E TAMBÉM 'const { verificarToken, eAdmin } = require(...)'
+verificarToken.verificarToken = verificarToken;
+verificarToken.eAdmin = eAdmin;
+verificarToken.eSuperAdmin = eSuperAdmin;
+
+module.exports = verificarToken;

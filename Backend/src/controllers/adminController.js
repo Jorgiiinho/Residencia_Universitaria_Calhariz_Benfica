@@ -1,6 +1,8 @@
 const db = require('../../config/db');
 const bcrypt = require('bcryptjs');
+const { enviarEmailMudancaEstado } = require('../../config/mailer');
 
+// Função auxiliar: Formatação de Código Postal (ex: 9000-000)
 const formatarCodigoPostal = (val) => {
   if (!val) return null;
   const clean = String(val).replace(/\D/g, "");
@@ -10,7 +12,9 @@ const formatarCodigoPostal = (val) => {
   return val;
 };
 
-// LISTAR TODAS AS CANDIDATURAS (Para a tabela do Dashboard Geral)
+// =============================================================================
+// LISTAR TODAS AS CANDIDATURAS (Permitido: 'admin' e 'superadmin')
+// =============================================================================
 exports.listarTodasCandidaturas = async (req, res) => {
   try {
     const querySQL = `
@@ -23,17 +27,20 @@ exports.listarTodasCandidaturas = async (req, res) => {
         candidato.estado
       FROM candidato
       JOIN user ON candidato.user_id = user.id
+      ORDER BY candidato.id DESC
     `;
 
     const [rows] = await db.query(querySQL);
     return res.status(200).json({ ok: true, candidaturas: rows });
   } catch (error) {
-    console.error('Erro ao listar candidaturas:', error);
+    console.error('❌ Erro ao listar candidaturas:', error);
     return res.status(500).json({ ok: false, error: 'Erro interno ao obter a listagem de candidaturas.' });
   }
 };
 
-// DOSSIÊ DETALHADO DO ALUNO (Ficha completa, Agregado e PDFs)
+// =============================================================================
+// DOSSIÊ DETALHADO DO ALUNO (Permitido: 'admin' e 'superadmin')
+// =============================================================================
 exports.obterDetalhesCandidatura = async (req, res) => {
   const { id } = req.params;
 
@@ -67,38 +74,44 @@ exports.obterDetalhesCandidatura = async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Candidatura não encontrada.' });
     }
 
-    // Procura os membros do agregado familiar vinculados a este candidato
+    // Agregado familiar associado à candidatura
     const [agregadoFamiliarDetalhes] = await db.query(
-      `SELECT id, nif, nome_completo as fullName, telefone as phone, grau_parentesco as kinship FROM agregado_familiar WHERE candidato_id = ?`, 
+      `SELECT id, nif, nome_completo as fullName, telefone as phone, grau_parentesco as kinship 
+       FROM agregado_familiar 
+       WHERE candidato_id = ?`, 
       [id]
     );
 
-    // Procura a lista de PDFs e os respetivos estados de aprovação individual
+    // Documentos submetidos na candidatura
     const [documentosDetalhes] = await db.query(
-      `SELECT id, tipo_documento as type, url_ficheiro as fileName, criado_em as uploadedAt, estado as status, motivo as rejectionReason FROM documentos WHERE candidato_id = ?`, 
+      `SELECT id, tipo_documento as type, url_ficheiro as fileName, criado_em as uploadedAt, estado as status, motivo as rejectionReason 
+       FROM documentos 
+       WHERE candidato_id = ?`, 
       [id]
     );
 
     return res.status(200).json({
-        ok: true,
-        candidatura: {
+      ok: true,
+      candidatura: {
         ...candidatoDetalhes[0],
-        postalCode: formatarCodigoPostal(candidatoDetalhes[0].postalCode) // 🌟 Formata o código postal para o admin ver com o hífen!
-            },
-        agregado_familiar: agregadoFamiliarDetalhes,
-        documentos: documentosDetalhes
+        postalCode: formatarCodigoPostal(candidatoDetalhes[0].postalCode)
+      },
+      agregado_familiar: agregadoFamiliarDetalhes,
+      documentos: documentosDetalhes
     });
 
   } catch (error) {
-    console.error("Erro ao obter a ficha do candidato:", error);
+    console.error("❌ Erro ao obter a ficha do candidato:", error);
     return res.status(500).json({ ok: false, error: "Erro interno ao processar os detalhes do processo." });
   }
 };
 
-// AVALIAÇÃO INDIVIDUAL DE DOCUMENTO (Aprovar / Rejeitar um PDF específico)
+// =============================================================================
+// AVALIAÇÃO INDIVIDUAL DE DOCUMENTO (Permitido: 'admin' e 'superadmin')
+// =============================================================================
 exports.atualizarEstadoDocumento = async (req, res) => {
   const { documento_id } = req.params;
-  const { estado, motivo } = req.body; // 🌟 Sincronizado com o payload enviado pelo frontend
+  const { estado, motivo } = req.body;
 
   const estadosValidos = ['pendente', 'aprovado', 'rejeitado'];
 
@@ -115,56 +128,30 @@ exports.atualizarEstadoDocumento = async (req, res) => {
     }
     return res.status(200).json({ ok: true, mensagem: "Estado do documento atualizado com sucesso!" });
   } catch (error) {
-    console.error("Erro ao atualizar o estado do documento:", error);
+    console.error("❌ Erro ao atualizar o estado do documento:", error);
     return res.status(500).json({ ok: false, error: "Erro interno ao atualizar o estado do documento." });
   }
 };
 
-// GESTÃO DE EQUIPA (Criar conta profissional para outro funcionário da Câmara)
-exports.criarFuncionarioAdmin = async (req, res) => {
-  const { nome, email, password, telefone } = req.body; // 🌟 Adaptado para receber o payload unificado do frontend
-
-  try {
-    if (!email || !password || !nome) {
-      return res.status(400).json({ ok: false, error: "Por favor, preencha todos os campos obrigatórios." });
-    }
-
-    // Verifica se o e-mail institucional já existe
-    const [emailExists] = await db.query('SELECT id FROM user WHERE email = ?', [email]);
-    if (emailExists.length > 0) {
-      return res.status(400).json({ ok: false, error: 'Este e-mail já está registado na plataforma.' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Grava as credenciais básicas na tabela 'user' com o cargo 'admin'
-    const inserirUserAdmin = `
-      INSERT INTO user (nome, email, password, telefone, tipo) 
-      VALUES (?, ?, ?, ?, 'admin')
-    `;
-    const [resultInsercaoUserAdmin] = await db.query(inserirUserAdmin, [nome, email, hashedPassword, telefone || null]);
-    
-    const novoAdminId = resultInsercaoUserAdmin.insertId;
-
-    // Vincula o ID gerado na tabela 'admin' de controlo interno
-    const inserirAdmin = `INSERT INTO admin (user_id) VALUES (?)`;
-    await db.query(inserirAdmin, [novoAdminId]);
-
-    return res.status(201).json({ ok: true, message: "Novo funcionário administrativo registado com sucesso!" });
-
-  } catch (error) {
-    console.error("Erro ao criar funcionário:", error);
-    return res.status(500).json({ ok: false, error: "Erro interno ao gerar a conta administrativa." });
-  }
-};
-
-// MÁQUINA DE ESTADOS DO PROCESSO
+// =============================================================================
+// MÁQUINA DE ESTADOS DO PROCESSO + E-MAIL (Permitido: 'admin' e 'superadmin')
+// =============================================================================
 exports.atualizarEstadoCandidatura = async (req, res) => {
   const { id } = req.params; 
-  const { estado, observacoes } = req.body; // 🌟 Sincronizado com os parâmetros de decisão do administrador
+  const { estado, observacoes } = req.body;
 
-  const estadosValidos = ['rascunho', 'incompleta', 'aguarda_documentos', 'aguarda_validacao', 'em_analise', 'pendente_correcao', 'aprovada', 'rejeitada', 'arquivada', 'desistencia'];  
+  const estadosValidos = [
+    'rascunho', 
+    'incompleta', 
+    'aguarda_documentos', 
+    'aguarda_validacao', 
+    'em_analise', 
+    'pendente_correcao', 
+    'aprovada', 
+    'rejeitada', 
+    'arquivada', 
+    'desistencia'
+  ];  
   
   if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ ok: false, error: "Estado de processo inválido." });
@@ -178,12 +165,146 @@ exports.atualizarEstadoCandidatura = async (req, res) => {
       return res.status(404).json({ ok: false, error: "Candidatura não encontrada." });
     }
 
+    // Notificar candidato por e-mail sobre a alteração de estado
+    const [userInfo] = await db.query(
+      `SELECT user.email, CONCAT(user.nome, ' ', IFNULL(user.apelido, '')) as nome_completo 
+       FROM candidato 
+       JOIN user ON candidato.user_id = user.id 
+       WHERE candidato.id = ?`,
+      [id]
+    );
+
+    if (userInfo.length > 0) {
+      const candidato = userInfo[0];
+
+      enviarEmailMudancaEstado(
+        candidato.email,
+        candidato.nome_completo,
+        estado,
+        observacoes
+      ).catch((err) => console.error("❌ Erro ao enviar e-mail de notificação de estado:", err));
+    }
+
     return res.json({ 
       ok: true, 
-      message: `O processo foi alterado com sucesso.` 
+      message: `O processo foi alterado para '${estado}' com sucesso.` 
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Erro ao atualizar estado da candidatura:", error);
     return res.status(500).json({ ok: false, error: "Erro interno ao modificar o estado." });
+  }
+};
+
+// =============================================================================
+// CRIAR NOVO ADMINISTRADOR (Exclusivo: 'superadmin')
+// =============================================================================
+exports.criarFuncionarioAdmin = async (req, res) => {
+  const { nome, apelido, email, password, telefone } = req.body;
+
+  try {
+    if (!email || !password || !nome) {
+      return res.status(400).json({ ok: false, error: "Por favor, preencha todos os campos obrigatórios." });
+    }
+
+    const [emailExists] = await db.query('SELECT id FROM user WHERE email = ?', [email]);
+    if (emailExists.length > 0) {
+      return res.status(400).json({ ok: false, error: 'Este e-mail já está registado na plataforma.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Inserir Utilizador na tabela principal com tipo = 'admin'
+    const inserirUserAdmin = `
+      INSERT INTO user (nome, apelido, email, password, telefone, tipo) 
+      VALUES (?, ?, ?, ?, ?, 'admin')
+    `;
+    const [resultInsercao] = await db.query(inserirUserAdmin, [
+      nome, 
+      apelido || '', 
+      email, 
+      hashedPassword, 
+      telefone || null
+    ]);
+    
+    const novoAdminId = resultInsercao.insertId;
+
+    // Registo de suporte na tabela 'admin' (se existir na base de dados)
+    try {
+      await db.query(`INSERT INTO admin (user_id) VALUES (?)`, [novoAdminId]);
+    } catch (e) {
+      // Ignora caso a tabela 'admin' não esteja em uso
+    }
+
+    return res.status(201).json({ ok: true, message: "Novo administrador registado com sucesso!" });
+
+  } catch (error) {
+    console.error("❌ Erro ao criar administrador:", error);
+    return res.status(500).json({ ok: false, error: "Erro interno ao gerar a conta de administrador." });
+  }
+};
+
+// =============================================================================
+// ABRIR / FECHAR PERÍODO DE CANDIDATURAS (Exclusivo: 'superadmin')
+// =============================================================================
+exports.togglePeriodoCandidaturas = async (req, res) => {
+  const { candidaturasAbertas, anoLetivo } = req.body; // ex: true/false, "2026/2027"
+
+  try {
+    // 1. Guarda estado de abertura
+    await db.query(
+      `INSERT INTO configuracao (chave, valor) VALUES ('candidaturas_abertas', ?)
+       ON DUPLICATE KEY UPDATE valor = ?`,
+      [candidaturasAbertas ? '1' : '0', candidaturasAbertas ? '1' : '0']
+    );
+
+    // 2. Guarda o ano letivo ativo
+    if (anoLetivo) {
+      await db.query(
+        `INSERT INTO configuracao (chave, valor) VALUES ('ano_letivo_ativo', ?)
+         ON DUPLICATE KEY UPDATE valor = ?`,
+        [anoLetivo, anoLetivo]
+      );
+    }
+
+    return res.json({ 
+      ok: true, 
+      message: `Período de candidaturas atualizado com sucesso!`,
+      candidaturasAbertas,
+      anoLetivo 
+    });
+
+  } catch (error) {
+    console.error("❌ Erro ao alterar período de candidaturas:", error);
+    return res.status(500).json({ ok: false, error: "Erro ao atualizar estado do período de candidaturas." });
+  }
+};
+// =============================================================================
+// CONSULTAR ESTADO E ANO LETIVO (Acesso Público)
+// =============================================================================
+exports.obterEstadoCandidaturas = async (req, res) => {
+  try {
+    const [rowsAbertas] = await db.query("SELECT valor FROM configuracao WHERE chave = 'candidaturas_abertas'");
+    const [rowsAno] = await db.query("SELECT valor FROM configuracao WHERE chave = 'ano_letivo_ativo'");
+    
+    const abertas = rowsAbertas.length > 0 ? rowsAbertas[0].valor === '1' : true;
+    const anoLetivo = rowsAno.length > 0 ? rowsAno[0].valor : "2026/2027";
+
+    return res.json({ ok: true, candidaturasAbertas: abertas, anoLetivo });
+  } catch (error) {
+    return res.json({ ok: true, candidaturasAbertas: true, anoLetivo: "2026/2027" });
+  }
+};
+exports.obterAnosLetivosDisponiveis = async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT DISTINCT ano_letivo FROM candidato WHERE ano_letivo IS NOT NULL ORDER BY ano_letivo DESC'
+    );
+    const anos = rows.map((r) => r.ano_letivo);
+    if (!anos.includes('2026/2027')) anos.unshift('2026/2027');
+    return res.status(200).json({ ok: true, anosLetivos: anos });
+  } catch (error) {
+    console.error('❌ Erro ao obter anos letivos:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao obter anos letivos.' });
   }
 };

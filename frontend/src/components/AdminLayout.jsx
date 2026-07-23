@@ -2,9 +2,10 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "@/context/AuthContext"; 
 import { useI18n } from "@/lib/providers";
-import { LayoutDashboard, Users, UserPlus, LogOut, Globe } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, LogOut, Globe, HelpCircle } from "lucide-react";
+import brasao from "@/assets/brasao.png";
 
-//Preservados os imports em PascalCase
+// Preservados os imports em PascalCase
 import { Button } from "@/components/ui/Button";
 import {
   Sidebar,
@@ -24,12 +25,13 @@ import {
 const items = [
   { title: "admin_dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "admin_applications", url: "/admin/dashboard", icon: Users },
+  { title: "Gerir FAQs", url: "/admin/faqs", icon: HelpCircle },
   { title: "admin_new_staff", url: "/admin/criar-funcionario", icon: UserPlus }
 ];
 
 function AdminSidebar() {
   const { t, lang, setLang } = useI18n();
-  const { user, logout } = useContext(AuthContext); // Lendo o utilizador real logado
+  const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
@@ -42,11 +44,14 @@ function AdminSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border/50 px-3 py-4 bg-background">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-emerald-600 text-white font-bold text-sm shadow-xs">
-            CRB
-          </div>
-          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
+        {/* 🌟 group-data-[collapsible=icon]:hidden esconde todo o bloco (incluindo o brasão) ao fechar */}
+        <div className="flex items-center gap-3 group-data-[collapsible=icon]:hidden">
+          <img 
+            className="h-9 w-9 shrink-0 object-contain rounded-md font-bold text-sm shadow-xs" 
+            src={brasao} 
+            alt="Brasão" 
+          />
+          <div className="flex flex-col min-w-0">
             <span className="font-display text-sm font-bold text-emerald-950 truncate">
               Ribeira Brava
             </span>
@@ -68,7 +73,7 @@ function AdminSidebar() {
                 const isActive = pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.title)}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.title) || item.title}>
                       <Link to={item.url} className="flex items-center gap-3 px-3 py-2 rounded-md font-medium transition-colors">
                         <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-emerald-600" : "text-muted-foreground"}`} />
                         <span className="group-data-[collapsible=icon]:hidden">{t(item.title) || item.title}</span>

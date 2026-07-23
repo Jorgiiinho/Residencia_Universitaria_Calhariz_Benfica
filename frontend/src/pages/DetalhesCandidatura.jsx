@@ -33,7 +33,7 @@ import { ArrowLeft, Check, X, Download, FileText, Loader2, Send } from "lucide-r
 import { toast } from "sonner";
 import { AdminAPI, DocumentosAPI } from "@/services/api";
 
-// 🌟 ESTADOS MANUAIS PERMITIDOS AO ADMINISTRADOR
+//ESTADOS MANUAIS PERMITIDOS AO ADMINISTRADOR
 const ADMIN_MANUAL_STATES = [
   "em_analise",
   "pendente_correcao",
@@ -194,14 +194,14 @@ export default function AppDetail() {
   const candidateName = `${firstName} ${lastName}`.trim() || app.email || storeUser?.email || "Candidato";
   const candidateEmail = storeUser?.email || app.email || app.user_email || personal.email || "—";
 
-  // 🌟 MAPA TOTAL DOS DADOS DO CANDIDATO (INCLUI 'freguesia' E 'parish')
+  // MAPA TOTAL DOS DADOS DO CANDIDATO (INCLUI 'freguesia' E 'parish')
   const candidateInfo = {
     telefone: personal.phone || personal.telefone || app.telefone || app.phone || app.telemovel || "—",
     birthdate: personal.birthdate || personal.dataNascimento || personal.data_nascimento || app.data_nascimento || app.dataNascimento || app.birthdate || "—",
     cc: personal.ccNumber || personal.cc || app.cc || app.num_cc || app.cartao_cidadao || app.ccNumber || "—",
     nif: personal.nif || app.nif || "—",
     
-    // 🌟 RESGUARDO PARA 'freguesia' (BD) E 'parish' (Frontend/JSON)
+    // RESGUARDO PARA 'freguesia' (BD) E 'parish' (Frontend/JSON)
     freguesia: personal.freguesia || personal.parish || app.freguesia || app.parish || 
                personal.freguesiaOrigem || personal.freguesia_origem || app.freguesia_origem || 
                app.freguesiaOrigem || app.freguesia_nome || "—",
@@ -361,7 +361,9 @@ export default function AppDetail() {
                   const tone = docStatus === "aprovado" ? "success" : docStatus === "rejeitado" ? "danger" : "neutral";
                   const currentLabel = docStatus === "aprovado" ? "Aprovado" : docStatus === "rejeitado" ? "Rejeitado" : "Pendente";
                   const labelDoc = DOC_LABELS[docType]?.pt || docType;
-                  const fileUrl = d.url || d.caminho || d.path || d.fileUrl;
+                  
+                  // Resguardo de URL para visualização do PDF
+                  const fileUrl = d.url || d.caminho || d.path || d.fileUrl || (d.fileName ? `http://localhost:5000/uploads/${d.fileName}` : null);
 
                   return (
                     <div key={docType || idx} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background p-4 shadow-xs">
@@ -451,7 +453,7 @@ export default function AppDetail() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={saveStatus} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm">
+                <Button onClick={saveStatus} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm font-bold">
                   <Send className="h-4 w-4" /> Guardar Decisão e Notificar Candidato
                 </Button>
               </div>

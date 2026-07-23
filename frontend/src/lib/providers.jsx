@@ -253,7 +253,7 @@ export function AppProviders({ children }) {
           status: apiApp.status || "rascunho",
           personal: {
             ...apiApp.personal,
-            freguesia: apiApp.personal.freguesia || ""
+            freguesia: apiApp.personal?.freguesia || ""
           },
           family: apiApp.family || [],
           documents: apiApp.documents || []
@@ -461,40 +461,69 @@ export function AppProviders({ children }) {
   );
 }
 
-export const DOC_LABELS = {
-  CC_Frente: { pt: "Cartão de Cidadão (Frente)", en: "Citizen Card (Front)" },
-  CC_Verso: { pt: "Cartão de Cidadão (Verso)", en: "Citizen Card (Back)" },
-  IRS: { pt: "Declaração de IRS", en: "Tax Return (IRS)" },
-  DeclaracaoResidencia: { pt: "Declaração de Residência", en: "Residence Declaration" },
-  DomicilioFiscal: { pt: "Declaração de Domicílio Fiscal", en: "Fiscal Domicile" },
-  Matricula: { pt: "Comprovativo de Matrícula", en: "Enrollment Proof" },
-  Bolsa: { pt: "Documento de Bolsa de Estudo", en: "Scholarship Document" },
-  Rendimentos: { pt: "Comprovativos de Rendimento", en: "Income Statements" }
-};
-
-export const ALL_DOC_TYPES = [
-  "CC_Frente",
-  "CC_Verso",
-  "IRS",
-  "DeclaracaoResidencia",
-  "DomicilioFiscal",
-  "Matricula",
-  "Bolsa",
-  "Rendimentos"
+// Documentos estritamente necessários para poder submeter
+export const REQUIRED_DOC_TYPES = [
+  "CC_frente",
+  "CC_verso",
+  "Declaracao_Residencia_Fiscal",
+  "Comprovativo_Inscricao_Matricula",
+  "IRS_Nota_Liquidacao"
 ];
 
+// Lista completa para renderizar na interface
+export const ALL_DOC_TYPES = [
+  ...REQUIRED_DOC_TYPES,
+  "Documento_bolsa_estudo",
+  "Comprovativo_rendimento_atual"
+];
+
+// Mapeamento 1:1 com os novos valores do ENUM da Base de Dados
 export const DOC_BACKEND_ENUM = {
-  CC_Frente: "CC_frente",
-  CC_Verso: "CC_verso",
-  IRS: "IRS",
-  DeclaracaoResidencia: "Declaracao_Residencia",
-  DomicilioFiscal: "Declaracao_Domicilio_Fiscal",
-  Matricula: "Comprovativo_Inscricao_Matricula",
-  Bolsa: "Documento_bolsa_estudo",
-  Rendimentos: "Comprovativos_Rendimento_Anuais",
-  Formulario: "Formulario_candidatura",
+  CC_frente: "CC_frente",
+  CC_verso: "CC_verso",
+  Declaracao_Residencia_Fiscal: "Declaracao_Residencia_Fiscal",
+  Comprovativo_Inscricao_Matricula: "Comprovativo_Inscricao_Matricula",
+  IRS_Nota_Liquidacao: "IRS_Nota_Liquidacao",
+  Documento_bolsa_estudo: "Documento_bolsa_estudo",
+  Comprovativo_rendimento_atual: "Comprovativo_rendimento_atual",
+  comprovativo_rendimento_atual: "Comprovativo_rendimento_atual"
 };
 
+// Rótulos e descrições para exibição nas tabelas e cards
+export const DOC_LABELS = {
+  CC_frente: {
+    pt: "Cartão de Cidadão — Frente",
+    desc: "Frente do Cartão de Cidadão"
+  },
+  CC_verso: {
+    pt: "Cartão de Cidadão — Verso",
+    desc: "Verso do Cartão de Cidadão."
+  },
+  Declaracao_Residencia_Fiscal: {
+    pt: "Declaração de Residência / Domicílio Fiscal",
+    desc: "Emitida pela Junta de Freguesia ou Declaração de domicílio da Autoridade Tributária."
+  },
+  Comprovativo_Inscricao_Matricula: {
+    pt: "Comprovativo de Matrícula ou Inscrição",
+    desc: "Comprovativo de inscrição no Ensino Superior para o ano letivo atual."
+  },
+  IRS_Nota_Liquidacao: {
+    pt: "Declaração de IRS e Nota de Liquidação ou certidão de dispensa emitida pela Autoridade Tributária",
+    desc: "IRS do Agregado + Liquidação (ou Certidão de Dispensa da Autoridade Tributária)."
+  },
+  Documento_bolsa_estudo: {
+    pt: "Comprovativo de Bolsa de Estudo",
+    desc: "Documento comprovativo de atribuição de bolsa (opcional)."
+  },
+  Comprovativo_rendimento_atual: { 
+    pt: "Comprovativo de Rendimento Atual", 
+    desc: "Comprovativo de rendimento atual do agregado familiar (opcional)." 
+  },
+  comprovativo_rendimento_atual: { 
+    pt: "Comprovativo de Rendimento Atual", 
+    desc: "Comprovativo de rendimento atual do agregado familiar (opcional)." 
+  },
+};
 export function statusMeta(s) {
   switch (s) {
     case "incompleta":

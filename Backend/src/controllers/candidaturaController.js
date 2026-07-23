@@ -1,5 +1,14 @@
 const db = require('../../config/db');
 
+// Lista oficial de documentos estritamente obrigatórios para submissão
+const DOCS_OBRIGATORIOS = [
+  'CC_frente',
+  'CC_verso',
+  'Declaracao_Residencia_Fiscal',
+  'Comprovativo_Inscricao_Matricula',
+  'IRS_Nota_Liquidacao'
+];
+
 const limparCampo = (valor) => {
   if (valor === undefined || valor === null) return null;
   const str = String(valor).trim();
@@ -15,7 +24,7 @@ const formatarCodigoPostal = (val) => {
   return val;
 };
 
-// CRIAR OU ATUALIZAR RASCUNHO (POST /api/candidaturas)
+// 1. CRIAR OU ATUALIZAR RASCUNHO (POST /api/candidaturas)
 exports.criarOuAtualizarCandidatura = async (req, res) => {
   const connection = await db.getConnection();
   const user_id = req.userId || (req.user && req.user.id);
@@ -53,7 +62,6 @@ exports.criarOuAtualizarCandidatura = async (req, res) => {
 
     if (existe.length > 0) {
       candidatoId = existe[0].id;
-      // SQL UPDATE com 'freguesia'
       const sqlUpdate = `
         UPDATE candidato SET 
           data_nascimento = ?, num_cc = ?, nif = ?, morada = ?, codigo_postal = ?, freguesia = ?,
@@ -67,7 +75,6 @@ exports.criarOuAtualizarCandidatura = async (req, res) => {
         curso, ano_letivo, candidatoId
       ]);
     } else {
-      // SQL INSERT com 'freguesia'
       const sqlInsert = `
         INSERT INTO candidato (
           user_id, data_nascimento, num_cc, nif, morada, codigo_postal, freguesia, telefone, 
@@ -114,7 +121,7 @@ exports.criarOuAtualizarCandidatura = async (req, res) => {
   }
 };
 
-//  BUSCAR MINHA CANDIDATURA (GET /api/candidaturas/me)
+// 2. BUSCAR MINHA CANDIDATURA (GET /api/candidaturas/me)
 exports.obterMinhaCandidatura = async (req, res) => {
   const user_id = req.userId || (req.user && req.user.id);
 
@@ -171,15 +178,45 @@ exports.obterMinhaCandidatura = async (req, res) => {
   }
 };
 
+// 3. SUBMETER CANDIDATURA FINAL (POST /api/candidaturas/:id/submeter)
 exports.submeterCandidatura = async (req, res) => {
   const { id } = req.params;
+
   try {
-    const [result] = await db.query("UPDATE candidato SET estado = 'aguarda_validacao' WHERE id = ?", [id]);
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ ok: false, error: "Não localizada." });
+    // Busca os tipos de documentos já guardados na base de dados
+    const [docs] = await db.query(
+      'SELECT tipo_documento FROM documentos WHERE candidato_id = ?',
+      [id]
+    );
+
+    const tiposExistentes = docs.map((d) => d.tipo_documento);
+
+    // Valida se falta algum documento obrigatório
+    const emFalta = DOCS_OBRIGATORIOS.filter(
+      (tipo) => !tiposExistentes.includes(tipo)
+    );
+
+    if (emFalta.length > 0) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: `Faltam anexar documentos obrigatórios: ${emFalta.join(', ')}` 
+      });
     }
-    return res.status(200).json({ ok: true, mensagem: "Submetido!" });
+
+    // Transita o estado do candidato para 'aguarda_validacao'
+    const [result] = await db.query(
+      "UPDATE candidato SET estado = 'aguarda_validacao' WHERE id = ?", 
+      [id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ ok: false, error: "Candidatura não localizada." });
+    }
+
+    return res.status(200).json({ ok: true, mensagem: "Candidatura submetida com sucesso!" });
+
   } catch (error) {
-    return res.status(500).json({ ok: false, error: "Erro de submissão." });
+    console.error('Erro ao submeter candidatura:', error);
+    return res.status(500).json({ ok: false, error: "Erro interno ao submeter candidatura." });
   }
 };
