@@ -39,7 +39,7 @@ exports.listarTodasCandidaturas = async (req, res) => {
 };
 
 // =============================================================================
-// DOSSIÊ DETALHADO DO ALUNO (Permitido: 'admin' e 'superadmin')
+// DOSSIÊ DETALHADO DO ALUNO + HISTÓRICO DE NOTAS (Permitido: 'admin' e 'superadmin')
 // =============================================================================
 exports.obterDetalhesCandidatura = async (req, res) => {
   const { id } = req.params;
@@ -74,7 +74,22 @@ exports.obterDetalhesCandidatura = async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Candidatura não encontrada.' });
     }
 
-    // Agregado familiar associado à candidatura
+    // CONSULTAR HISTÓRICO PERMANENTE DE OBSERVAÇÕES
+    const [historicoObservacoes] = await db.query(
+      `SELECT 
+         obs.id,
+         obs.texto,
+         obs.criado_em as criadoEm,
+         CONCAT(u.nome, ' ', IFNULL(u.apelido, '')) as adminNome,
+         u.id as adminId
+       FROM candidato_observacoes obs
+       JOIN user u ON obs.user_id = u.id
+       WHERE obs.candidato_id = ?
+       ORDER BY obs.criado_em DESC`,
+      [id]
+    );
+
+    // Agregado familiar associado
     const [agregadoFamiliarDetalhes] = await db.query(
       `SELECT id, nif, nome_completo as fullName, telefone as phone, grau_parentesco as kinship 
        FROM agregado_familiar 
@@ -82,7 +97,7 @@ exports.obterDetalhesCandidatura = async (req, res) => {
       [id]
     );
 
-    // Documentos submetidos na candidatura
+    // Documentos submetidos
     const [documentosDetalhes] = await db.query(
       `SELECT id, tipo_documento as type, url_ficheiro as fileName, criado_em as uploadedAt, estado as status, motivo as rejectionReason 
        FROM documentos 
@@ -97,12 +112,48 @@ exports.obterDetalhesCandidatura = async (req, res) => {
         postalCode: formatarCodigoPostal(candidatoDetalhes[0].postalCode)
       },
       agregado_familiar: agregadoFamiliarDetalhes,
-      documentos: documentosDetalhes
+      documentos: documentosDetalhes,
+      observacoes_historico: historicoObservacoes
     });
 
   } catch (error) {
     console.error("❌ Erro ao obter a ficha do candidato:", error);
     return res.status(500).json({ ok: false, error: "Erro interno ao processar os detalhes do processo." });
+  }
+};
+
+// =============================================================================
+// ADICIONAR NOVA OBSERVAÇÃO AO HISTÓRICO (Qualquer Admin/SuperAdmin)
+// =============================================================================
+exports.adicionarObservacao = async (req, res) => {
+  const { id } = req.params; // candidato_id
+  const { texto } = req.body;
+  const loggedUserId = req.user?.id;
+
+  if (!texto || !texto.trim()) {
+    return res.status(400).json({ ok: false, error: "O texto da observação não pode estar vazio." });
+  }
+
+  try {
+    const [cand] = await db.query(`SELECT id FROM candidato WHERE id = ?`, [id]);
+    if (cand.length === 0) {
+      return res.status(404).json({ ok: false, error: "Candidatura não encontrada." });
+    }
+
+    // Inserir nota na tabela de histórico associada ao admin logado
+    await db.query(
+      `INSERT INTO candidato_observacoes (candidato_id, user_id, texto) VALUES (?, ?, ?)`,
+      [id, loggedUserId, texto.trim()]
+    );
+
+    return res.status(201).json({
+      ok: true,
+      mensagem: "Observação adicionada com sucesso ao histórico do processo!"
+    });
+
+  } catch (error) {
+    console.error("❌ Erro ao adicionar observação:", error);
+    return res.status(500).json({ ok: false, error: "Erro interno ao guardar a observação." });
   }
 };
 
@@ -134,11 +185,12 @@ exports.atualizarEstadoDocumento = async (req, res) => {
 };
 
 // =============================================================================
-// MÁQUINA DE ESTADOS DO PROCESSO + E-MAIL (Permitido: 'admin' e 'superadmin')
+// MÁQUINA DE ESTADOS DO PROCESSO + E-MAIL (Qualquer Admin/SuperAdmin)
 // =============================================================================
 exports.atualizarEstadoCandidatura = async (req, res) => {
   const { id } = req.params; 
   const { estado, observacoes } = req.body;
+  const loggedUserId = req.user?.id;
 
   const estadosValidos = [
     'rascunho', 
@@ -163,6 +215,14 @@ exports.atualizarEstadoCandidatura = async (req, res) => {
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ ok: false, error: "Candidatura não encontrada." });
+    }
+
+    // Se houver texto em 'observacoes', regista também no histórico permanente
+    if (observacoes && observacoes.trim()) {
+      await db.query(
+        `INSERT INTO candidato_observacoes (candidato_id, user_id, texto) VALUES (?, ?, ?)`,
+        [id, loggedUserId, observacoes.trim()]
+      );
     }
 
     // Notificar candidato por e-mail sobre a alteração de estado
@@ -199,66 +259,63 @@ exports.atualizarEstadoCandidatura = async (req, res) => {
 // CRIAR NOVO ADMINISTRADOR (Exclusivo: 'superadmin')
 // =============================================================================
 exports.criarFuncionarioAdmin = async (req, res) => {
-  const { nome, apelido, email, password, telefone } = req.body;
+  const { nome, apelido, email, password } = req.body;
 
   try {
     if (!email || !password || !nome) {
       return res.status(400).json({ ok: false, error: "Por favor, preencha todos os campos obrigatórios." });
     }
 
+    // Verificar se o e-mail já se encontra registado
     const [emailExists] = await db.query('SELECT id FROM user WHERE email = ?', [email]);
     if (emailExists.length > 0) {
       return res.status(400).json({ ok: false, error: 'Este e-mail já está registado na plataforma.' });
     }
 
+    // Encriptar a palavra-passe
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Inserir Utilizador na tabela principal com tipo = 'admin'
-    const inserirUserAdmin = `
-      INSERT INTO user (nome, apelido, email, password, telefone, tipo) 
-      VALUES (?, ?, ?, ?, ?, 'admin')
+    // 1. Inserir na tabela 'user' (sem a coluna 'telefone')
+    const inserirUserSQL = `
+      INSERT INTO user (nome, apelido, email, password, tipo) 
+      VALUES (?, ?, ?, ?, 'admin')
     `;
-    const [resultInsercao] = await db.query(inserirUserAdmin, [
+    const [resultInsercao] = await db.query(inserirUserSQL, [
       nome, 
       apelido || '', 
       email, 
-      hashedPassword, 
-      telefone || null
+      hashedPassword
     ]);
     
     const novoAdminId = resultInsercao.insertId;
 
-    // Registo de suporte na tabela 'admin' (se existir na base de dados)
-    try {
-      await db.query(`INSERT INTO admin (user_id) VALUES (?)`, [novoAdminId]);
-    } catch (e) {
-      // Ignora caso a tabela 'admin' não esteja em uso
-    }
+    // 2. Inserir obrigatoriamente na tabela 'admin'
+    await db.query(`INSERT INTO admin (user_id) VALUES (?)`, [novoAdminId]);
 
-    return res.status(201).json({ ok: true, message: "Novo administrador registado com sucesso!" });
+    return res.status(201).json({ 
+      ok: true, 
+      message: "Novo administrador registado com sucesso!" 
+    });
 
   } catch (error) {
     console.error("❌ Erro ao criar administrador:", error);
     return res.status(500).json({ ok: false, error: "Erro interno ao gerar a conta de administrador." });
   }
 };
-
 // =============================================================================
 // ABRIR / FECHAR PERÍODO DE CANDIDATURAS (Exclusivo: 'superadmin')
 // =============================================================================
 exports.togglePeriodoCandidaturas = async (req, res) => {
-  const { candidaturasAbertas, anoLetivo } = req.body; // ex: true/false, "2026/2027"
+  const { candidaturasAbertas, anoLetivo } = req.body;
 
   try {
-    // 1. Guarda estado de abertura
     await db.query(
       `INSERT INTO configuracao (chave, valor) VALUES ('candidaturas_abertas', ?)
        ON DUPLICATE KEY UPDATE valor = ?`,
       [candidaturasAbertas ? '1' : '0', candidaturasAbertas ? '1' : '0']
     );
 
-    // 2. Guarda o ano letivo ativo
     if (anoLetivo) {
       await db.query(
         `INSERT INTO configuracao (chave, valor) VALUES ('ano_letivo_ativo', ?)
@@ -279,6 +336,7 @@ exports.togglePeriodoCandidaturas = async (req, res) => {
     return res.status(500).json({ ok: false, error: "Erro ao atualizar estado do período de candidaturas." });
   }
 };
+
 // =============================================================================
 // CONSULTAR ESTADO E ANO LETIVO (Acesso Público)
 // =============================================================================
@@ -295,6 +353,7 @@ exports.obterEstadoCandidaturas = async (req, res) => {
     return res.json({ ok: true, candidaturasAbertas: true, anoLetivo: "2026/2027" });
   }
 };
+
 exports.obterAnosLetivosDisponiveis = async (req, res) => {
   try {
     const [rows] = await db.query(

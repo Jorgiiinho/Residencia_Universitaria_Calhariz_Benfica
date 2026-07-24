@@ -43,7 +43,7 @@ import { toast } from "sonner";
 
 export default function AdminDashboard() {
   const { t } = useI18n();
-  const { store, updateApplication } = useStore();
+  const { store } = useStore();
   const { user, authenticated } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,10 +51,11 @@ export default function AdminDashboard() {
   const [q, setQ] = useState("");
   const [remoteApps, setRemoteApps] = useState(null);
 
-  // Modal de Observações
+  // Modal de Observações Internas
   const [obsApp, setObsApp] = useState(null);
   const [novaObservacao, setNovaObservacao] = useState("");
   const [savingObs, setSavingObs] = useState(false);
+  const [loadingObs, setLoadingObs] = useState(false);
 
   // Modal de Gestão do Período (SuperAdmin)
   const [periodoModal, setPeriodoModal] = useState(false);
@@ -167,34 +168,52 @@ export default function AdminDashboard() {
     }
   };
 
-  // Adicionar Observação
+  // 🟢 ABRIR MODAL E CARREGAR HISTÓRICO DE NOTAS INTERNAS
+  const handleAbrirObs = async (appItem) => {
+    const appId = appItem.id || appItem.candidatura_id;
+    setObsApp(appItem);
+    setLoadingObs(true);
+
+    try {
+      const res = await AdminAPI.obterDetalhes(appId);
+      if (res.data?.ok) {
+        setObsApp({
+          ...appItem,
+          ...res.data.candidatura,
+          observacoes_historico: res.data.observacoes_historico || []
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao carregar observações:", err);
+    } finally {
+      setLoadingObs(false);
+    }
+  };
+
+  // 🟢 ADICIONAR NOTA INTERNA (SEM MUDAR ESTADO E SEM DISPARAR EMAIL)
   const handleAdicionarObservacao = async () => {
     if (!novaObservacao.trim() || !obsApp) return;
 
     setSavingObs(true);
-    const adminNome = `${user?.nome || 'Admin'} ${user?.apelido || ''}`.trim();
-    const dataHora = new Date().toLocaleString("pt-PT");
-
-    const novaEntrada = `[${dataHora}] ${adminNome}: ${novaObservacao.trim()}`;
-    const observacoesExistentes = obsApp.observacoes || "";
-    const observacoesAtualizadas = observacoesExistentes 
-      ? `${observacoesExistentes}\n\n${novaEntrada}` 
-      : novaEntrada;
+    const appId = obsApp.id || obsApp.candidatura_id;
 
     try {
-      await AdminAPI.atualizarEstadoCandidatura(obsApp.id || obsApp.candidatura_id, obsApp.status || obsApp.estado || "em_analise", observacoesAtualizadas);
+      await AdminAPI.adicionarObservacao(appId, novaObservacao.trim());
 
-      const appAtualizada = { ...obsApp, observacoes: observacoesAtualizadas };
-      setObsApp(appAtualizada);
-      if (remoteApps) {
-        setRemoteApps(remoteApps.map((a) => String(a.id || a.candidatura_id) === String(obsApp.id || obsApp.candidatura_id) ? appAtualizada : a));
-      }
-      updateApplication(obsApp.id || obsApp.candidatura_id, { observacoes: observacoesAtualizadas });
-
+      toast.success("Nota interna registada com sucesso!");
       setNovaObservacao("");
-      toast.success("Observação registada com sucesso!");
+
+      // Recarrega as notas atualizadas da base de dados
+      const res = await AdminAPI.obterDetalhes(appId);
+      if (res.data?.ok) {
+        setObsApp((prev) => ({
+          ...prev,
+          observacoes_historico: res.data.observacoes_historico || []
+        }));
+      }
     } catch (err) {
-      toast.error("Não foi possível guardar a observação.");
+      console.error("Erro ao adicionar observação:", err);
+      toast.error(err?.response?.data?.error || "Erro ao guardar a observação.");
     } finally {
       setSavingObs(false);
     }
@@ -209,7 +228,7 @@ export default function AdminDashboard() {
             <Calendar className="h-5 w-5 text-emerald-800" />
             <div>
               <div className="text-sm font-bold text-emerald-950">
-                Estado Atual: {candidaturasAbertas ? "🟢 Candidaturas Abertas" : "🔴 Candidaturas Fechadas"}
+                Estado Atual: {candidaturasAbertas ? " Candidaturas Abertas" : " Candidaturas Fechadas"}
               </div>
               <div className="text-xs text-emerald-700">Ano Letivo Ativo: <strong>{anoLetivo}</strong></div>
             </div>
@@ -244,7 +263,6 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              {/* BOTÃO PARA O HISTÓRICO GLOBAL */}
               <Button asChild variant="outline" size="sm" className="gap-2 border-emerald-600 text-emerald-800 hover:bg-emerald-50 cursor-pointer">
                 <Link to="/admin/historico">
                   <Archive className="h-4 w-4" /> Histórico Global
@@ -305,7 +323,7 @@ export default function AdminDashboard() {
                             size="sm" 
                             variant="outline" 
                             className="gap-1.5 cursor-pointer border-slate-300 hover:bg-slate-100"
-                            onClick={() => setObsApp(a)}
+                            onClick={() => handleAbrirObs(a)}
                           >
                             <MessageSquare className="h-3.5 w-3.5 text-slate-600" /> Observações
                           </Button>
@@ -355,7 +373,7 @@ export default function AdminDashboard() {
                   className={`flex-1 cursor-pointer ${candidaturasAbertas ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
                   onClick={() => setCandidaturasAbertas(true)}
                 >
-                  🟢 Abertas
+                  Abertas
                 </Button>
                 <Button
                   type="button"
@@ -363,7 +381,7 @@ export default function AdminDashboard() {
                   className="flex-1 cursor-pointer"
                   onClick={() => setCandidaturasAbertas(false)}
                 >
-                  🔴 Fechadas
+                   Fechadas
                 </Button>
               </div>
             </div>
@@ -384,37 +402,45 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE OBSERVAÇÕES */}
+      {/* 🟢 MODAL DE OBSERVAÇÕES INTERNAS */}
       <Dialog open={!!obsApp} onOpenChange={(o) => !o && setObsApp(null)}>
         <DialogContent className="max-w-lg bg-background border border-border">
           <DialogHeader>
             <DialogTitle className="text-emerald-950 font-display flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-emerald-600" /> Observações — {obsApp ? extractAppData(obsApp, store?.users).candidateName : "Candidato"}
+              <MessageSquare className="h-5 w-5 text-emerald-600" /> Notas Internas — {obsApp ? extractAppData(obsApp, store?.users).candidateName : "Candidato"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 my-2">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Histórico de Notas Internas</div>
+            
             <div className="max-h-60 overflow-y-auto rounded-md border border-border bg-slate-50 p-3 space-y-2">
-              {obsApp?.observacoes ? (
-                obsApp.observacoes.split("\n\n").map((nota, idx) => (
-                  <div key={idx} className="bg-white p-2.5 rounded border border-slate-200 text-xs shadow-2xs">
-                    <p className="whitespace-pre-wrap text-slate-800 font-medium">{nota}</p>
+              {loadingObs ? (
+                <p className="text-xs text-muted-foreground text-center py-4">A carregar histórico...</p>
+              ) : obsApp?.observacoes_historico && obsApp.observacoes_historico.length > 0 ? (
+                obsApp.observacoes_historico.map((nota) => (
+                  <div key={nota.id} className="bg-white p-2.5 rounded border border-slate-200 text-xs shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center text-[11px] font-semibold text-slate-500 border-b border-slate-100 pb-1">
+                      <span className="text-emerald-950 font-bold">{nota.adminNome || "Administrador"}</span>
+                      <span>{nota.criadoEm ? new Date(nota.criadoEm).toLocaleString("pt-PT") : ""}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-slate-800 font-medium pt-0.5">{nota.texto}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">Ainda não existem observações registadas neste processo.</p>
+                <p className="text-xs text-muted-foreground text-center py-4">Ainda não existem notas internas registadas neste processo.</p>
               )}
             </div>
 
             <div className="space-y-2 pt-2 border-t border-border">
-              <label className="text-xs font-semibold uppercase tracking-wider text-emerald-950">Adicionar Nova Observação</label>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-emerald-950">Adicionar Nota Interna</Label>
               <Textarea
                 value={novaObservacao}
                 onChange={(e) => setNovaObservacao(e.target.value)}
-                placeholder="Escreva notas técnicas..."
+                placeholder="Escreva notas técnicas para a equipa..."
                 rows={3}
               />
+              <p className="text-[11px] text-muted-foreground">🔒 Nota privada: Visível apenas para a equipa e não é enviada ao aluno.</p>
             </div>
           </div>
 
@@ -423,7 +449,7 @@ export default function AdminDashboard() {
             <Button 
               onClick={handleAdicionarObservacao} 
               disabled={savingObs || !novaObservacao.trim()}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-bold"
             >
               <Send className="h-3.5 w-3.5" /> Adicionar Nota
             </Button>

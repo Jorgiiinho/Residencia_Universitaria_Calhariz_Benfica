@@ -517,7 +517,7 @@ export const DOC_LABELS = {
   },
   Comprovativo_rendimento_atual: { 
     pt: "Comprovativo de Rendimento Atual", 
-    desc: "Comprovativo de rendimento atual do agregado familiar (opcional)." 
+    desc: "Comprovativo de rendimento atual do agregado familiar (serve para demonstrar a situação económica no momento da candidatura, por exemplo recibos de vencimento, pensões, subsídios de desemprego ou outras prestações/rendimentos)." 
   },
   comprovativo_rendimento_atual: { 
     pt: "Comprovativo de Rendimento Atual", 

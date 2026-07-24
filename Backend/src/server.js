@@ -17,7 +17,7 @@ const documentoRoutes = require('./routes/documentoRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const faqRoutes = require('./routes/faqRoutes');
 
-// 🔍 Diagnóstico no arranque
+// Diagnóstico no arranque
 console.log("🔍 [Debug Server.js] Estado dos imports de rotas:");
 console.log("  - /api/auth:", typeof authRoutes);
 console.log("  - /api/candidaturas:", typeof candidaturaRoutes);
@@ -31,13 +31,10 @@ if (typeof candidaturaRoutes === 'function') app.use('/api/candidaturas', candid
 if (typeof documentoRoutes === 'function') app.use('/api/documentos', documentoRoutes);
 if (typeof adminRoutes === 'function') app.use('/api/admin', adminRoutes);
 
-// Suporta registo de faqRoutes mesmo se for exportado como objeto ou função
+// REGISTAR AS FAQS TANTO PARA O ACESSO PÚBLICO COMO ADMINISTRATIVO
 if (typeof faqRoutes === 'function') {
   app.use('/api/faqs', faqRoutes);
-} else if (faqRoutes && typeof faqRoutes.router === 'function') {
-  app.use('/api/faqs', faqRoutes.router);
-} else if (faqRoutes && typeof faqRoutes.default === 'function') {
-  app.use('/api/faqs', faqRoutes.default);
+  app.use('/api/admin/faqs', faqRoutes);
 }
 
 // Rota de Diagnóstico (Health Check)

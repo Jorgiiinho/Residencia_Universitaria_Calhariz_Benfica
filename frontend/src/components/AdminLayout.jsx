@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "@/context/AuthContext"; 
 import { useI18n } from "@/lib/providers";
-import { LayoutDashboard, Users, UserPlus, LogOut, Globe, HelpCircle } from "lucide-react";
+import { LayoutDashboard, LogOut, Globe, HelpCircle, UserPlus } from "lucide-react";
 import brasao from "@/assets/brasao.png";
 
 // Preservados os imports em PascalCase
@@ -22,13 +22,6 @@ import {
   SidebarFooter
 } from "@/components/ui/Sidebar";
 
-const items = [
-  { title: "admin_dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "admin_applications", url: "/admin/dashboard", icon: Users },
-  { title: "Gerir FAQs", url: "/admin/faqs", icon: HelpCircle },
-  { title: "admin_new_staff", url: "/admin/criar-funcionario", icon: UserPlus }
-];
-
 function AdminSidebar() {
   const { t, lang, setLang } = useI18n();
   const { user, logout } = useContext(AuthContext);
@@ -36,15 +29,38 @@ function AdminSidebar() {
   const location = useLocation();
   const pathname = location.pathname;
 
+  const isSuperAdmin = user?.tipo === "superadmin";
+
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
+  // Lista dinâmica de itens conforme o tipo de utilizador
+  const items = [
+    { 
+      title: "admin_dashboard", 
+      url: "/admin/dashboard", 
+      icon: LayoutDashboard,
+      show: true 
+    },
+    { 
+      title: "Gerir FAQs", 
+      url: "/admin/faqs", 
+      icon: HelpCircle,
+      show: true 
+    },
+    { 
+      title: "admin_new_staff", 
+      url: "/admin/criar-funcionario", 
+      icon: UserPlus,
+      show: isSuperAdmin // 🌟 Apenas visível para SuperAdmin
+    }
+  ].filter(item => item.show);
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border/50 px-3 py-4 bg-background">
-        {/* 🌟 group-data-[collapsible=icon]:hidden esconde todo o bloco (incluindo o brasão) ao fechar */}
         <div className="flex items-center gap-3 group-data-[collapsible=icon]:hidden">
           <img 
             className="h-9 w-9 shrink-0 object-contain rounded-md font-bold text-sm shadow-xs" 
@@ -103,8 +119,8 @@ function AdminSidebar() {
             <div className="text-xs font-bold text-emerald-950 truncate">
               {user?.nome || "Funcionário"}
             </div>
-            <div className="text-[10px] text-muted-foreground truncate">
-              {user?.email}
+            <div className="text-[10px] text-muted-foreground truncate font-semibold uppercase text-amber-700">
+              {user?.tipo}
             </div>
           </div>
         </div>

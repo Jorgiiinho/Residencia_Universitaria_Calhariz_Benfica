@@ -128,7 +128,7 @@ export default function AdminFaqs() {
     if (!window.confirm("Tem a certeza que pretende eliminar esta pergunta frequente?")) return;
 
     try {
-      await FaqAPI.apagar(id);
+      await FaqAPI.eliminar(id);
       toast.success("FAQ eliminada com sucesso!");
       setFaqs(faqs.filter(f => f.id !== id));
     } catch (err) {

@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS mydb.user (
 CREATE TABLE IF NOT EXISTS mydb.candidato (
   id INT NOT NULL AUTO_INCREMENT,
   user_id INT NOT NULL,
+  tecnico_responsavel_id INT NULL,
   data_nascimento DATE NOT NULL,
-  num_cc VARCHAR(9) NOT NULL,
+  num_cc VARCHAR(8) NOT NULL,
   nif VARCHAR(9) NOT NULL,
   morada VARCHAR(150) NOT NULL,
   codigo_postal VARCHAR(7) NOT NULL,
@@ -48,10 +49,29 @@ CREATE TABLE IF NOT EXISTS mydb.candidato (
   UNIQUE INDEX user_id_UNIQUE (user_id ASC) VISIBLE,
   UNIQUE INDEX num_cc_UNIQUE (num_cc ASC) VISIBLE,
   UNIQUE INDEX nif_UNIQUE (nif ASC) VISIBLE,
-  CONSTRAINT fk_candidato_user1 FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
+  INDEX fk_candidato_tecnico_idx (tecnico_responsavel_id ASC) VISIBLE,
+  CONSTRAINT fk_candidato_user1 FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION,
+  CONSTRAINT fk_candidato_tecnico FOREIGN KEY (tecnico_responsavel_id) REFERENCES mydb.user (id) ON DELETE
+  SET NULL ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
--- 3. TABELA ADMIN 
+-- 3. TABELA OBSERVACOES DA CANDIDATURA 
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS mydb.candidato_observacoes (
+  id INT NOT NULL AUTO_INCREMENT,
+  candidato_id INT NOT NULL,
+  user_id INT NOT NULL,
+  -- Admin que escreveu a nota
+  texto TEXT NOT NULL,
+  criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX fk_obs_candidato_idx (candidato_id ASC) VISIBLE,
+  INDEX fk_obs_user_idx (user_id ASC) VISIBLE,
+  CONSTRAINT fk_obs_candidato FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION,
+  CONSTRAINT fk_obs_user FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
+) ENGINE = InnoDB;
+-- -----------------------------------------------------
+-- 4. TABELA ADMIN 
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.admin (
   id INT NOT NULL AUTO_INCREMENT,
@@ -61,7 +81,7 @@ CREATE TABLE IF NOT EXISTS mydb.admin (
   CONSTRAINT fk_admin_user FOREIGN KEY (user_id) REFERENCES mydb.user (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
--- 4. TABELA AGREGADO FAMILIAR
+-- 5. TABELA AGREGADO FAMILIAR
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
   id INT NOT NULL AUTO_INCREMENT,
@@ -87,7 +107,7 @@ CREATE TABLE IF NOT EXISTS mydb.agregado_familiar (
   CONSTRAINT fk_table1_candidato1 FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
--- 5. TABELA DOCUMENTOS
+-- 6. TABELA DOCUMENTOS
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.documentos (
   id INT NOT NULL AUTO_INCREMENT,
@@ -109,7 +129,7 @@ CREATE TABLE IF NOT EXISTS mydb.documentos (
   CONSTRAINT fk_table2_candidato1 FOREIGN KEY (candidato_id) REFERENCES mydb.candidato (id) ON DELETE CASCADE ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
--- 6. TABELA CONFIGURACAO 
+-- 7. TABELA CONFIGURACAO 
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.configuracao (
   chave VARCHAR(50) NOT NULL,
@@ -118,7 +138,7 @@ CREATE TABLE IF NOT EXISTS mydb.configuracao (
   PRIMARY KEY (chave)
 ) ENGINE = InnoDB;
 -- -----------------------------------------------------
--- 7. TABELA FAQ
+-- 8. TABELA FAQ
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS mydb.faq (
   id INT AUTO_INCREMENT PRIMARY KEY,

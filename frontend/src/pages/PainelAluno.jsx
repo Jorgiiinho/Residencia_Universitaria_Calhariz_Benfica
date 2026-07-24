@@ -1,11 +1,12 @@
 import { Link, useNavigate } from "react-router-dom"; 
-import { useEffect, useContext } from "react";
+import { useEffect, useContext, useState } from "react";
 import { AuthContext } from "@/context/AuthContext"; 
 import { PublicLayout } from "@/components/PublicLayout";
 import { Button } from "@/components/ui/Button";
 import { useI18n, useStore, statusMeta, ALL_DOC_TYPES } from "@/lib/providers";
 import { Card, CardContent } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/AdminLayout"; 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import {
   FilePlus,
   AlertTriangle,
@@ -15,27 +16,45 @@ import {
   ArrowRight,
   Sparkles,
   XCircle,
-  RefreshCcw
+  RefreshCcw,
+  Lock
 } from "lucide-react";
+import { ConfigAPI } from "@/services/api";
 
 export default function Panel() {
   const { t } = useI18n();
-  const { user, loading, authenticated } = useContext(AuthContext); // Monitorização da sessão real
-  const { getApplicationForCurrent, createApplicationForCurrent } = useStore();
+  const { user, loading, authenticated } = useContext(AuthContext);
+  const { store, getApplicationForCurrent, createApplicationForCurrent } = useStore();
   const navigate = useNavigate();
+
+  // Estado do período sincronizado diretamente da BD
+  const [isPeriodOpen, setIsPeriodOpen] = useState(
+    store?.isPeriodOpen ?? store?.periodoAberto ?? true
+  );
+
+  // 🟢 CONSULTAR EM TEMPO REAL O ESTADO DO PERÍODO
+  useEffect(() => {
+    ConfigAPI.obterEstadoPeriodo()
+      .then((res) => {
+        if (res.data?.ok) {
+          const abertas = res.data.candidaturasAbertas;
+          setIsPeriodOpen(abertas);
+        }
+      })
+      .catch((err) => console.error("Erro ao consultar estado do período:", err));
+  }, []);
 
   // Trancagem interna de rotas
   useEffect(() => {
     if (!loading) {
       if (!authenticated) {
         navigate("/login");
-      } else if (user?.tipo === "admin") {
+      } else if (user?.tipo === "admin" || user?.tipo === "superadmin") {
         navigate("/admin/dashboard");
       }
     }
   }, [user, authenticated, loading, navigate]);
 
-  // Se estiver a carregar os dados do utilizador
   if (loading) {
     return (
       <PublicLayout>
@@ -56,6 +75,7 @@ export default function Panel() {
   const app = getApplicationForCurrent();
 
   const startNew = () => {
+    if (!isPeriodOpen) return;
     createApplicationForCurrent();
     navigate("/candidatura/dados");
   };
@@ -80,35 +100,48 @@ export default function Panel() {
           <Card className="border-2 border-dashed border-emerald-500/40 bg-emerald-500/5">
             <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
               <div className="grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-                <FilePlus className="h-7 w-7" />
+                {isPeriodOpen ? <FilePlus className="h-7 w-7" /> : <Lock className="h-7 w-7 text-amber-700" />}
               </div>
               <div>
                 <h2 className="font-display text-xl font-bold text-emerald-900">
-                  {t("panel_title") || "Candidatura à Residência Universitária"}
+                  {t("panel_title") || "Candidatura à Bolsa de Estudo"}
                 </h2>
                 <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                  {t("no_application") || "Ainda não iniciaste o teu processo de candidatura para o ano letivo atual."}
+                  {isPeriodOpen 
+                    ? (t("no_application") || "Ainda não iniciaste o teu processo de candidatura para o ano letivo atual.")
+                    : "O período de submissão de novas candidaturas encontra-se de momento encerrado pelo Município."}
                 </p>
               </div>
-              <Button 
-                size="lg" 
-                onClick={startNew} 
-                className="mt-2 gap-2 bg-emerald-600 hover:bg-emerald-700 font-bold cursor-pointer text-white shadow-sm"
-              >
-                + {t("start_application") || "Iniciar Candidatura"}
-              </Button>
+
+              {isPeriodOpen ? (
+                <Button 
+                  size="lg" 
+                  onClick={startNew} 
+                  className="mt-2 gap-2 bg-emerald-600 hover:bg-emerald-700 font-bold cursor-pointer text-white shadow-sm"
+                >
+                  + {t("start_application") || "Iniciar Candidatura"}
+                </Button>
+              ) : (
+                <Alert className="mt-2 border-amber-300 bg-amber-50 text-amber-900 max-w-md">
+                  <AlertTriangle className="h-4 w-4 text-amber-700" />
+                  <AlertTitle className="font-bold text-xs uppercase tracking-wider">Candidaturas Fechadas</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Fica atento às divulgações oficiais da Câmara Municipal da Ribeira Brava para a abertura do próximo período.
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         ) : (
           /* CASO 2: CANDIDATURA EXISTENTE */
-          <ApplicationStateCard appId={app.id} />
+          <ApplicationStateCard appId={app.id} isPeriodOpen={isPeriodOpen} />
         )}
       </div>
     </PublicLayout>
   );
 }
 
-function ApplicationStateCard({ appId }) {
+function ApplicationStateCard({ appId, isPeriodOpen }) {
   const { store } = useStore();
   const app = store.applications.find((a) => String(a.id) === String(appId)) || {};
   const meta = statusMeta(app.status || "rascunho") || { tone: "neutral", label: app.status };
@@ -116,7 +149,7 @@ function ApplicationStateCard({ appId }) {
   const documents = app.documents || [];
   const personal = app.personal || {};
 
-  const rejectedDocs = documents.filter((d) => d.status === "rejeitado");
+  const rejectedDocs = documents.filter((d) => d.status === "rejeitado" || d.estado === "rejeitado");
   const uploadedCount = documents.filter((d) => !!d.fileName || !!d.nome_ficheiro).length;
   const totalDocs = ALL_DOC_TYPES?.length || 5;
 
@@ -171,16 +204,14 @@ function ApplicationStateCard({ appId }) {
           )}
         </div>
 
-        {/* BLOCO DE RESUMO DOS DADOS */}
+        {/* RESUMO DOS DADOS */}
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <StatBlock label="Curso" value={personal.course || personal.curso || "—"} />
           <StatBlock label="Instituição" value={personal.institution || personal.instituicao_1 || "—"} />
           <StatBlock label="Documentos" value={`${uploadedCount} / ${totalDocs}`} />
         </div>
 
-        {/* 🌟 CONDICIONAL DE ACORDO COM O ESTADO DA CANDIDATURA */}
-
-        {/* 1. CORREÇÃO SOLICITADA (PENDENTE_CORRECAO) */}
+        {/* 1. CORREÇÃO SOLICITADA (Disponível SEMPRE, mesmo com candidaturas fechadas) */}
         {app.status === "pendente_correcao" && (
           <div className="mt-6 rounded-xl border border-amber-300 bg-amber-500/10 p-5 shadow-2xs">
             <div className="flex items-start gap-3">
@@ -197,7 +228,7 @@ function ApplicationStateCard({ appId }) {
                 <div className="mt-4">
                   <Button asChild className="gap-2 bg-amber-600 hover:bg-amber-700 font-bold text-white cursor-pointer shadow-xs">
                     <Link to="/candidatura/corrigir">
-                      <RefreshCcw className="h-4 w-4" /> Corrigir Documentos <ArrowRight className="h-4 w-4" />
+                      <RefreshCcw className="h-4 w-4" /> Corrigir Candidatura <ArrowRight className="h-4 w-4" />
                     </Link>
                   </Button>
                 </div>
@@ -206,29 +237,43 @@ function ApplicationStateCard({ appId }) {
           </div>
         )}
 
-        {/* 2. INCOMPLETA / RASCUNHO */}
+        {/* 2. INCOMPLETA / RASCUNHO (TRANCADO SE O PERÍODO ESTIVER FECHADO) */}
         {(app.status === "incompleta" || app.status === "rascunho") && (
-          <div className="mt-6 flex flex-wrap gap-3 pt-2">
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer">
-              <Link to="/candidatura/dados">Continuar candidatura</Link>
-            </Button>
-            <Button asChild variant="outline" className="cursor-pointer border-emerald-600 text-emerald-800 hover:bg-emerald-50">
-              <Link to="/candidatura/documentos">Ir para documentos</Link>
-            </Button>
+          <div className="mt-6 space-y-3">
+            {isPeriodOpen ? (
+              <div className="flex flex-wrap gap-3">
+                <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer">
+                  <Link to="/candidatura/dados">Continuar candidatura</Link>
+                </Button>
+                <Button asChild variant="outline" className="cursor-pointer border-emerald-600 text-emerald-800 hover:bg-emerald-50">
+                  <Link to="/candidatura/documentos">Ir para documentos</Link>
+                </Button>
+              </div>
+            ) : (
+              <Alert variant="destructive" className="border-red-300 bg-red-50 text-red-900">
+                <Lock className="h-4 w-4 text-red-700" />
+                <AlertTitle className="font-bold text-xs uppercase tracking-wider text-red-800">
+                  Prazo de Candidatura Encerrado
+                </AlertTitle>
+                <AlertDescription className="text-xs text-red-950/80">
+                  O período oficial de candidaturas terminou. Como a candidatura não foi submetida a tempo, já não é possível concluir este rascunho.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         )}
 
         {/* 3. AGUARDA VALIDAÇÃO OU EM ANÁLISE */}
         {(app.status === "aguarda_validacao" || app.status === "em_analise") && (
           <div className="mt-6 rounded-lg border border-sky-100 bg-sky-50/80 p-4 text-xs text-sky-900 leading-relaxed">
-            ℹ️ A sua candidatura foi submetida e está atualmente em fase de verificação pelos Serviços de Ação Social da Câmara Municipal da Ribeira Brava. Será notificado por e-mail caso sejam necessárias correções.
+            ℹ️ A sua candidatura foi submetida e está atualmente em fase de verificação pelos Serviços Municipais da Câmara Municipal da Ribeira Brava. Será notificado por e-mail caso sejam necessárias correções.
           </div>
         )}
 
         {/* 4. APROVADA */}
         {app.status === "aprovada" && (
           <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 leading-relaxed">
-            🎉 <strong>Parabéns!</strong> A sua candidatura à Residência Universitária foi aprovada. A equipa do Município entrará em contacto para os procedimentos seguintes.
+            🎉 <strong>Parabéns!</strong> A sua candidatura à Bolsa de Estudo foi aprovada. A equipa do Município entrará em contacto para os procedimentos seguintes.
           </div>
         )}
 

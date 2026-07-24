@@ -29,11 +29,11 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/Dialog";
-import { ArrowLeft, Check, X, Download, FileText, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, X, Download, FileText, Loader2, Send, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { AdminAPI, DocumentosAPI } from "@/services/api";
 
-//ESTADOS MANUAIS PERMITIDOS AO ADMINISTRADOR
+// ESTADOS MANUAIS PERMITIDOS AO ADMINISTRADOR
 const ADMIN_MANUAL_STATES = [
   "em_analise",
   "pendente_correcao",
@@ -42,7 +42,6 @@ const ADMIN_MANUAL_STATES = [
   "arquivada"
 ];
 
-// Auxiliares de parsing seguro para JSONs/Arrays
 const parseData = (data) => {
   if (!data) return {};
   if (typeof data === "string") {
@@ -62,6 +61,17 @@ const parseArray = (data) => {
   return Array.isArray(data) ? data : [];
 };
 
+// Formatar data para DD/MM/YYYY
+const formatarData = (val) => {
+  if (!val || val === "—") return "—";
+  const dataApenas = String(val).split("T")[0];
+  const partes = dataApenas.split("-");
+  if (partes.length === 3) {
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  }
+  return val;
+};
+
 export default function AppDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -77,32 +87,34 @@ export default function AppDetail() {
 
   const transitionTriggered = useRef(false);
 
-  // 1. DECLARAÇÃO DE 'app' NO TOPO (Evita ReferenceError)
-  const app = remoteApp || store?.applications?.find((a) => String(a.id) === String(id));
+  const localApp = store?.applications?.find((a) => String(a.id) === String(id)) || {};
+  const app = remoteApp || localApp;
   const currentUserId = app?.userId || app?.user_id;
   const storeUser = store?.users?.find((u) => String(u.id) === String(currentUserId));
 
-  // 2. SEGURANÇA DE ACESSO À ROTA
+  const isAdminOrSuper = currentUser?.tipo === "admin" || currentUser?.tipo === "superadmin";
+
+  // 1. Controlo de acessos
   useEffect(() => {
     if (!authenticated) navigate("/login");
-    else if (currentUser?.tipo !== "admin") navigate("/painel");
-  }, [currentUser, authenticated, navigate]);
+    else if (!isAdminOrSuper) navigate("/painel");
+  }, [authenticated, isAdminOrSuper, navigate]);
 
-  // 3. OBTENÇÃO DOS DADOS DA API
+  // 2. Carregar dados da API
   useEffect(() => {
-    if (!id || !authenticated || currentUser?.tipo !== "admin") return;
+    if (!id || !authenticated || !isAdminOrSuper) return;
 
     setLoading(true);
     AdminAPI.obterCandidatura(id)
       .then((res) => {
         const data = res?.data;
-        console.log("📥 [AppDetail API] Candidatura recebida:", data);
 
         if (data?.ok && data?.candidatura) {
           const fullApp = {
             ...data.candidatura,
             family: data.agregado_familiar || data.agregado || data.candidatura.family || [],
             documents: data.documentos || data.ficheiros || data.candidatura.documents || [],
+            observacoes_historico: data.observacoes_historico || []
           };
           setRemoteApp(fullApp);
           if (fullApp.status) setStatus(fullApp.status);
@@ -115,19 +127,17 @@ export default function AppDetail() {
         console.warn("⚠️ [AppDetail API] Erro ao buscar via API:", err?.message);
       })
       .finally(() => setLoading(false));
-  }, [id, authenticated, currentUser]);
+  }, [id, authenticated, isAdminOrSuper]);
 
-  // 4. TRANSIÇÃO AUTOMÁTICA PARA "EM ANÁLISE" E NOTIFICAÇÃO
+  // 3. Transição automática para "em_analise"
   useEffect(() => {
-    if (!app || transitionTriggered.current) return;
+    if (!app?.id || transitionTriggered.current || loading) return;
 
     const currentStatus = app.status || "rascunho";
 
     if (["aguarda_validacao", "incompleta", "rascunho"].includes(currentStatus)) {
       transitionTriggered.current = true;
       const autoMsg = "O seu processo deu entrada em análise técnica pelos serviços do Município da Ribeira Brava.";
-
-      console.log(`🚀 [Auto-Status] A alterar o processo #${app.id} para 'em_analise'...`);
 
       setStatus("em_analise");
       if (remoteApp) setRemoteApp((prev) => ({ ...prev, status: "em_analise" }));
@@ -141,17 +151,16 @@ export default function AppDetail() {
           console.warn("⚠️ [Auto-Status] Alterado no ecrã. Aviso do servidor:", err?.message);
         });
     }
-  }, [app, remoteApp, updateApplication]);
+  }, [app?.id, app?.status, loading, updateApplication]);
 
-  // 5. SINCRONIZA ESTADO SELECCIONADO
+  // 4. Sincronização do Estado do Select
   useEffect(() => {
     if (app?.status && !status) {
       setStatus(app.status);
     }
-  }, [app, status]);
+  }, [app?.status, status]);
 
-  // CARREGAMENTO E ERRO
-  if (loading && !app) {
+  if (loading) {
     return (
       <AdminShell title="A carregar processo...">
         <div className="flex h-64 items-center justify-center">
@@ -161,7 +170,7 @@ export default function AppDetail() {
     );
   }
 
-  if (!app) {
+  if (!app || (!remoteApp && !localApp.id)) {
     return (
       <AdminShell title="Candidatura não encontrada">
         <div className="p-6 text-center">
@@ -174,51 +183,58 @@ export default function AppDetail() {
     );
   }
 
-  // EXTRAÇÃO DE DADOS
+  // Extração segura de dados
   const personal = parseData(app.personal);
   const academic = parseData(app.academic);
+  const localPersonal = parseData(localApp.personal);
 
-  // Agregado Familiar
   let family = parseArray(app.family);
   if (family.length === 0) family = parseArray(app.agregado_familiar);
   if (family.length === 0) family = parseArray(app.agregado);
 
-  // Documentos
   let documents = parseArray(app.documents);
   if (documents.length === 0) documents = parseArray(app.documentos);
   if (documents.length === 0) documents = parseArray(app.ficheiros);
 
-  // Nome e Contactos
-  const firstName = personal.firstName || personal.nome || app.first_name || app.firstName || app.user_nome || storeUser?.firstName || storeUser?.nome || app.nome || "";
-  const lastName = personal.lastName || personal.apelido || app.last_name || app.lastName || app.user_apelido || storeUser?.lastName || storeUser?.apelido || app.apelido || "";
-  const candidateName = `${firstName} ${lastName}`.trim() || app.email || storeUser?.email || "Candidato";
-  const candidateEmail = storeUser?.email || app.email || app.user_email || personal.email || "—";
+  const historicoObs = parseArray(app.observacoes_historico);
 
-  // MAPA TOTAL DOS DADOS DO CANDIDATO (INCLUI 'freguesia' E 'parish')
+  // TRATAMENTO DO NOME
+  const rawNome = app.nome || app.nome_completo || personal.firstName || personal.nome || app.first_name || app.firstName || storeUser?.nome || storeUser?.firstName || "";
+  const rawApelido = app.apelido || personal.lastName || personal.apelido || app.last_name || app.lastName || storeUser?.apelido || storeUser?.lastName || "";
+
+  let candidateName = `${rawNome} ${rawApelido}`.trim();
+  const candidateEmail = app.email || storeUser?.email || personal.email || "—";
+
+  if (!candidateName || candidateName.includes("@")) {
+    if (candidateEmail && candidateEmail.includes("@")) {
+      const usernamePart = candidateEmail.split("@")[0];
+      candidateName = usernamePart
+        .split(".")
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(" ");
+    } else {
+      candidateName = "Candidato";
+    }
+  }
+
+  // Mapa de Informação com Fallback Duplo
   const candidateInfo = {
-    telefone: personal.phone || personal.telefone || app.telefone || app.phone || app.telemovel || "—",
-    birthdate: personal.birthdate || personal.dataNascimento || personal.data_nascimento || app.data_nascimento || app.dataNascimento || app.birthdate || "—",
-    cc: personal.ccNumber || personal.cc || app.cc || app.num_cc || app.cartao_cidadao || app.ccNumber || "—",
-    nif: personal.nif || app.nif || "—",
+    telefone: app.telefone || personal.phone || personal.telefone || localPersonal.phone || localPersonal.telefone || "—",
+    birthdate: formatarData(app.data_nascimento || personal.birthdate || personal.dataNascimento || localPersonal.birthdate),
+    cc: app.num_cc || personal.ccNumber || personal.cc || localPersonal.ccNumber || "—",
+    nif: app.nif || personal.nif || localPersonal.nif || "—",
+    freguesia: app.freguesia || personal.freguesia || personal.parish || localPersonal.freguesia || localPersonal.parish || "—",
+    morada: app.morada || personal.address || personal.morada || localPersonal.address || "—",
+    codigoPostal: app.codigo_postal || personal.postalCode || personal.codigoPostal || localPersonal.postalCode || "—",
+    localidade: app.localidade || personal.city || personal.localidade || localPersonal.city || "",
     
-    // RESGUARDO PARA 'freguesia' (BD) E 'parish' (Frontend/JSON)
-    freguesia: personal.freguesia || personal.parish || app.freguesia || app.parish || 
-               personal.freguesiaOrigem || personal.freguesia_origem || app.freguesia_origem || 
-               app.freguesiaOrigem || app.freguesia_nome || "—",
-               
-    morada: personal.address || personal.morada || app.morada || app.address || "—",
-    codigoPostal: personal.postalCode || personal.codigoPostal || personal.codigo_postal || app.codigo_postal || app.codigoPostal || app.postalCode || "—",
-    localidade: personal.city || personal.localidade || app.localidade || app.cidade || app.city || "",
-    
-    // Ensino Superior
-    instituicao: personal.institution || academic.institution || app.instituicao || app.instituicao_ensino || app.institution || "—",
-    instituicaoAlt2: personal.institutionAlt2 || academic.institutionAlt2 || app.instituicao_alt2 || app.institutionAlt2 || "—",
-    instituicaoAlt3: personal.institutionAlt3 || academic.institutionAlt3 || app.instituicao_alt3 || app.institutionAlt3 || "—",
-    curso: personal.course || academic.course || app.curso || app.course || "—",
-    anoLectivo: personal.academicYear || academic.academicYear || app.anoLectivo || app.ano_lectivo || app.ano_letivo || app.academicYear || "—"
+    instituicao: app.instituicao_1 || personal.institution || academic.institution || localPersonal.institution || "—",
+    instituicaoAlt2: app.instituicao_2 || personal.institutionAlt2 || academic.institutionAlt2 || "—",
+    instituicaoAlt3: app.instituicao_3 || personal.institutionAlt3 || academic.institutionAlt3 || "—",
+    curso: app.curso || personal.course || academic.course || localPersonal.course || "—",
+    anoLectivo: app.ano_letivo || personal.academicYear || academic.academicYear || localPersonal.academicYear || "—"
   };
 
-  // AÇÕES SOBRE DOCUMENTOS
   const setDocStatus = async (type, s, reason) => {
     const doc = documents.find((d) => (d.type || d.tipo || d.tipo_documento) === type);
     try {
@@ -237,12 +253,13 @@ export default function AppDetail() {
     toast.success(s === "aprovado" ? "Documento aprovado" : "Documento rejeitado");
   };
 
-  // DECISÃO GLOBAL
+  // 🟢 DECISÃO GLOBAL CORRIGIDA: Salva e Redireciona para o Dashboard
   const saveStatus = async () => {
     if (!status) return;
     try {
       await AdminAPI.atualizarEstadoCandidatura(app.id, status, observacoes);
       toast.success("Decisão gravada com sucesso! E-mail de notificação enviado ao candidato.");
+      setObservacoes("");
     } catch (err) {
       console.warn("[api] atualizar estado candidatura falhou", err?.message);
       toast.error("Decisão salva localmente no painel.");
@@ -250,6 +267,9 @@ export default function AppDetail() {
     
     updateApplication(app.id, { status });
     if (remoteApp) setRemoteApp((prev) => ({ ...prev, status }));
+
+    // Redireciona para o Admin Dashboard após guardar
+    navigate("/admin/dashboard");
   };
 
   const meta = statusMeta(status || app.status || "em_analise") || { tone: "neutral", label: status || "Em Análise" };
@@ -362,7 +382,6 @@ export default function AppDetail() {
                   const currentLabel = docStatus === "aprovado" ? "Aprovado" : docStatus === "rejeitado" ? "Rejeitado" : "Pendente";
                   const labelDoc = DOC_LABELS[docType]?.pt || docType;
                   
-                  // Resguardo de URL para visualização do PDF
                   const fileUrl = d.url || d.caminho || d.path || d.fileUrl || (d.fileName ? `http://localhost:5000/uploads/${d.fileName}` : null);
 
                   return (
@@ -422,46 +441,76 @@ export default function AppDetail() {
 
         {/* SECÇÃO 4: DECISÃO GLOBAL */}
         <TabsContent value="decisao">
-          <Card className="mt-4 border-border">
-            <CardContent className="p-6">
-              <SectionTitle>Decisão Global do Município</SectionTitle>
-              
-              <div className="mb-4">
-                <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                  Observações / Justificação (Enviadas no e-mail ao candidato)
-                </label>
-                <Textarea 
-                  className="mt-2"
-                  placeholder="Escreva notas ou informações que devam constar da notificação por e-mail..."
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  rows={4}
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-                <div>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card className="mt-4 border-border lg:col-span-2">
+              <CardContent className="p-6">
+                <SectionTitle>Decisão Global do Município</SectionTitle>
+                
+                <div className="mb-4">
                   <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                    Selecione a Decisão do Processo
+                    Observações / Justificação (Enviadas no e-mail ao candidato)
                   </label>
-                  <Select value={status} onValueChange={(v) => setStatus(v)}>
-                    <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ADMIN_MANUAL_STATES.map((s) => (
-                        <SelectItem key={s} value={s}>{statusMeta(s).label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Textarea 
+                    className="mt-2"
+                    placeholder="Escreva notas ou informações que devam constar da notificação por e-mail..."
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    rows={4}
+                  />
                 </div>
-                <Button onClick={saveStatus} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm font-bold">
-                  <Send className="h-4 w-4" /> Guardar Decisão e Notificar Candidato
-                </Button>
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground bg-slate-50 p-3 rounded border border-slate-200">
-                💡 <strong>Garantia de Notificação:</strong> Qualquer alteração guardada nesta secção envia um e-mail direto para <strong>{candidateEmail}</strong> com o novo estado e a mensagem fornecida.
-              </p>
-            </CardContent>
-          </Card>
+
+                <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div>
+                    <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                      Selecione a Decisão do Processo
+                    </label>
+                    <Select value={status} onValueChange={(v) => setStatus(v)}>
+                      <SelectTrigger className="mt-2"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ADMIN_MANUAL_STATES.map((s) => (
+                          <SelectItem key={s} value={s}>{statusMeta(s).label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* 🟢 BOTÃO CORRIGIDO: Executa apenas saveStatus e limpa o onClick do ícone Send */}
+                  <Button onClick={saveStatus} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm font-bold">
+                    <Send className="h-4 w-4" /> Guardar Decisão e Notificar Candidato
+                  </Button>
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground bg-slate-50 p-3 rounded border border-slate-200">
+                  💡 <strong>Garantia de Notificação:</strong> Qualquer alteração guardada nesta secção envia um e-mail direto para <strong>{candidateEmail}</strong> com o novo estado e a mensagem fornecida.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="mt-4 border-border">
+              <CardContent className="p-6 space-y-3">
+                <div className="flex items-center gap-2 font-display text-sm font-bold text-emerald-950 border-b pb-2">
+                  <Lock className="h-4 w-4 text-emerald-600" /> Histórico de Notas Internas
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                  {historicoObs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-6">Sem notas internas registadas para este processo.</p>
+                  ) : (
+                    historicoObs.map((obs) => (
+                      <div key={obs.id} className="p-2.5 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
+                        <div className="flex justify-between font-bold text-slate-700 text-[10px]">
+                          <span>{obs.adminNome || "Admin"}</span>
+                          <span className="text-slate-400">{obs.criadoEm ? new Date(obs.criadoEm).toLocaleDateString("pt-PT") : ""}</span>
+                        </div>
+                        <p className="text-slate-800 whitespace-pre-wrap">{obs.texto}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center border-t pt-2">
+                  🔒 Notas privadas da equipa técnica (registadas via Dashboard).
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -510,11 +559,13 @@ function SectionTitle({ children }) {
 
 function Info({ label, children, className }) {
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className || ""}`}>
       <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         {label}
       </div>
-      <div className="mt-1 text-sm font-medium text-emerald-950">{children}</div>
+      <div className="mt-1 text-sm font-medium text-emerald-950 break-words font-sans">
+        {children}
+      </div>
     </div>
   );
 }

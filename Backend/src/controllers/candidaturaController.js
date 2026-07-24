@@ -35,6 +35,27 @@ exports.criarOuAtualizarCandidatura = async (req, res) => {
   }
 
   try {
+    // 🟢 VERIFICAÇÃO DE SEGURANÇA: PERÍODO DE CANDIDATURAS ABERTO
+    const [configRows] = await connection.query(
+      "SELECT valor FROM configuracao WHERE chave = 'candidaturas_abertas'"
+    );
+    const candidaturasAbertas = configRows.length === 0 || configRows[0].valor === 'true' || configRows[0].valor === '1';
+
+    // Verificar se a candidatura já existe para este utilizador
+    const [existe] = await connection.query('SELECT id, estado FROM candidato WHERE user_id = ?', [user_id]);
+
+    // Se o período estiver FECHADO, só permite continuar se a candidatura estiver em "pendente_correcao"
+    if (!candidaturasAbertas) {
+      const estadoAtual = existe.length > 0 ? existe[0].estado : null;
+      if (estadoAtual !== 'pendente_correcao') {
+        connection.release();
+        return res.status(403).json({
+          ok: false,
+          error: "O período de candidaturas encontra-se atualmente encerrado pelo Município da Ribeira Brava."
+        });
+      }
+    }
+
     await connection.beginTransaction();
 
     const candidatoData = req.body.candidato || req.body || {};
@@ -57,7 +78,6 @@ exports.criarOuAtualizarCandidatura = async (req, res) => {
       codigo_postal = codigo_postal.replace(/\D/g, "");
     }
 
-    const [existe] = await connection.query('SELECT id FROM candidato WHERE user_id = ?', [user_id]);
     let candidatoId;
 
     if (existe.length > 0) {
@@ -183,6 +203,24 @@ exports.submeterCandidatura = async (req, res) => {
   const { id } = req.params;
 
   try {
+    // 🟢 VERIFICAÇÃO DE SEGURANÇA NO SUBMETER
+    const [configRows] = await db.query("SELECT valor FROM configuracao WHERE chave = 'candidaturas_abertas'");
+    const candidaturasAbertas = configRows.length === 0 || configRows[0].valor === 'true' || configRows[0].valor === '1';
+
+    const [candidatoRows] = await db.query('SELECT estado FROM candidato WHERE id = ?', [id]);
+    if (candidatoRows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Candidatura não localizada." });
+    }
+
+    const estadoAtual = candidatoRows[0].estado;
+
+    if (!candidaturasAbertas && estadoAtual !== 'pendente_correcao') {
+      return res.status(403).json({
+        ok: false,
+        error: "O período de candidaturas encontra-se encerrado pelo Município da Ribeira Brava."
+      });
+    }
+
     // Busca os tipos de documentos já guardados na base de dados
     const [docs] = await db.query(
       'SELECT tipo_documento FROM documentos WHERE candidato_id = ?',
@@ -204,19 +242,51 @@ exports.submeterCandidatura = async (req, res) => {
     }
 
     // Transita o estado do candidato para 'aguarda_validacao'
-    const [result] = await db.query(
-      "UPDATE candidato SET estado = 'aguarda_validacao' WHERE id = ?", 
-      [id]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ ok: false, error: "Candidatura não localizada." });
-    }
+    await db.query("UPDATE candidato SET estado = 'aguarda_validacao' WHERE id = ?", [id]);
 
     return res.status(200).json({ ok: true, mensagem: "Candidatura submetida com sucesso!" });
 
   } catch (error) {
     console.error('Erro ao submeter candidatura:', error);
     return res.status(500).json({ ok: false, error: "Erro interno ao submeter candidatura." });
+  }
+};
+
+// 4. PRE-PREENCHIMENTO
+exports.obterUltimosDados = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const [rows] = await db.query(
+      `SELECT personal, candidato, morada, contacto 
+       FROM candidatura 
+       WHERE user_id = ? 
+       ORDER BY id DESC LIMIT 1`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ ok: true, dadosAnteriores: null });
+    }
+
+    const ultimaCandidatura = rows[0];
+    let personal = {};
+    try {
+      personal = typeof ultimaCandidatura.personal === 'string' 
+        ? JSON.parse(ultimaCandidatura.personal) 
+        : ultimaCandidatura.personal;
+    } catch (e) {}
+
+    return res.json({
+      ok: true,
+      dadosAnteriores: {
+        ...ultimaCandidatura,
+        personal
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao obter dados anteriores:', error);
+    return res.status(500).json({ ok: false, error: 'Erro ao procurar histórico de dados.' });
   }
 };

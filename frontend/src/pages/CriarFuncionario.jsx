@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
 
 export default function CreateStaff() {
-  const { user: currentUser, authenticated } = useContext(AuthContext); // Sessão real do funcionário
+  const { user: currentUser, authenticated } = useContext(AuthContext);
   const { createAdmin } = useStore();
   const navigate = useNavigate();
   
@@ -20,19 +20,27 @@ export default function CreateStaff() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Segurança de rota administrativa
+  // SEGURANÇA DE ROTA CORRIGIDA: Aceita 'admin' E 'superadmin' (e deteta 'role' ou 'tipo')
   useEffect(() => {
-    if (!authenticated) navigate("/login");
-    else if (currentUser?.tipo !== "admin") navigate("/painel");
+    const userTipo = currentUser?.tipo;
+    const eStaff = userTipo === "admin" || userTipo === "superadmin";
+
+    if (!authenticated) {
+      navigate("/login", { replace: true });
+    } else if (currentUser && !eStaff) {
+      navigate("/painel", { replace: true });
+    }
   }, [currentUser, authenticated, navigate]);
 
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
+
     if (f.password.length < 6) {
       setError("A palavra-passe deve ter pelo menos 6 caracteres.");
       return;
     }
+
     setLoading(true);
     try {
       const res = await createAdmin(f);
@@ -70,6 +78,7 @@ export default function CreateStaff() {
 
           <form onSubmit={submit} className="space-y-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Nome</Label>
@@ -80,18 +89,17 @@ export default function CreateStaff() {
                 <Input required value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label>Email profissional</Label>
               <Input type="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
             </div>
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
-            </div>
+
             <div className="space-y-2">
               <Label>Palavra-passe de acesso</Label>
               <Input type="password" required value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
             </div>
+
             <Button type="submit" size="lg" disabled={loading} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm">
               <UserPlus className="h-4 w-4" /> {loading ? "A processar..." : "Criar Conta de Funcionário"}
             </Button>

@@ -32,10 +32,10 @@ const KINSHIPS = ["Pai", "Mãe", "Irmão", "Irmã", "Avô", "Avó", "Tio", "Tia"
 export default function WizardData() {
   const { t } = useI18n();
   const { user, authenticated } = useContext(AuthContext); 
-  const { getApplicationForCurrent, updateApplication, syncCandidatura } = useStore();
+  const { getApplicationForCurrent, syncCandidatura } = useStore();
   const navigate = useNavigate();
 
-  // Segurança de sessão pura
+  // Segurança de sessão
   useEffect(() => {
     if (!authenticated) navigate("/login");
   }, [authenticated, navigate]);
@@ -45,9 +45,69 @@ export default function WizardData() {
   const [personal, setPersonal] = useState(() => app?.personal ?? {});
   const [family, setFamily] = useState(() => app?.family ?? []);
 
+  // Estados para as declarações obrigatórias
+  const [decl1, setDecl1] = useState(false);
+  const [decl2, setDecl2] = useState(false);
+  const [decl3, setDecl3] = useState(false);
+
+  // 🌟 PRÉ-PREENCHIMENTO AUTOMÁTICO DE DADOS ANTERIORES
   useEffect(() => {
-    if (app?.personal) setPersonal(app.personal);
-    if (app?.family) setFamily(app.family);
+    async function carregarDadosAnteriores() {
+      // Se o estado já tiver NIF e CC (ex: vindo da store local), não precisa consultar
+      if (personal.nif && personal.ccNumber) return;
+
+      try {
+        if (CandidaturaAPI.obterUltimosDados) {
+          const res = await CandidaturaAPI.obterUltimosDados();
+          if (res.data?.ok && res.data?.dadosAnteriores) {
+            const d = res.data.dadosAnteriores;
+            const cand = d.candidato || d;
+            const fam = d.agregado_familiar || [];
+
+            setPersonal((prev) => ({
+              ...prev,
+              birthdate: cand.data_nascimento || cand.birthdate || prev.birthdate || "",
+              ccNumber: cand.num_cc || cand.ccNumber || prev.ccNumber || "",
+              nif: cand.nif || prev.nif || "",
+              phone: cand.telefone || cand.phone || prev.phone || "",
+              address: cand.morada || cand.address || prev.address || "",
+              postalCode: cand.codigo_postal || cand.postalCode || prev.postalCode || "",
+              freguesia: cand.freguesia || prev.freguesia || "",
+              institution: cand.instituicao_1 || cand.institution || prev.institution || "",
+              institutionAlt2: cand.instituicao_2 || cand.institutionAlt2 || prev.institutionAlt2 || "",
+              institutionAlt3: cand.instituicao_3 || cand.institutionAlt3 || prev.institutionAlt3 || "",
+              course: cand.curso || cand.course || prev.course || "",
+              academicYear: cand.ano_letivo || cand.academicYear || prev.academicYear || "",
+            }));
+
+            if (Array.isArray(fam) && fam.length > 0) {
+              setFamily(
+                fam.map((m, idx) => ({
+                  id: m.id || `m-${Date.now()}-${idx}`,
+                  fullName: m.nome_completo || m.fullName || "",
+                  nif: m.nif || "",
+                  phone: m.telefone || m.phone || "",
+                  kinship: m.grau_parentesco || m.kinship || "Outro"
+                }))
+              );
+            }
+
+            toast.info("Recuperámos os teus dados anteriores. Por favor, revê e confirma!");
+          }
+        }
+      } catch (err) {
+        console.log("Primeira candidatura do utilizador ou erro ao obter histórico.");
+      }
+    }
+
+    if (authenticated) {
+      carregarDadosAnteriores();
+    }
+  }, [authenticated]);
+
+  useEffect(() => {
+    if (app?.personal) setPersonal((prev) => ({ ...prev, ...app.personal }));
+    if (app?.family && app.family.length > 0) setFamily(app.family);
   }, [app]);
 
   const setP = (k, v) => setPersonal((p) => ({ ...p, [k]: v }));
@@ -71,79 +131,73 @@ export default function WizardData() {
 
   const removeMember = (id) => setFamily((f) => f.filter((m) => m.id !== id));
 
-  // VALIDAÇÃO TOTAL DO FORMULÁRIO (Com "freguesia" obrigatória)
+  // VALIDAÇÃO TOTAL DO FORMULÁRIO
   const isFormValid = () => {
     console.log("📋 [Validação] A testar todos os campos obrigatórios...", personal);
 
     if (!personal.birthdate) {
-      console.warn("❌ Falha na validação: Falta a Data de Nascimento.");
       toast.error("A data de nascimento é obrigatória.");
       return false;
     }
-    if (!personal.ccNumber || personal.ccNumber.trim().length < 8) {
-      console.warn("❌ Falha na validação: CC ausente ou curto.");
-      toast.error("O número do Cartão de Cidadão é obrigatório (mín. 8 caracteres).");
+    if (!personal.ccNumber || personal.ccNumber.trim().length !== 8) {
+      toast.error("O número do Cartão de Cidadão é obrigatório e deve conter exatamente 8 caracteres.");
       return false;
     }
     if (!personal.nif || personal.nif.length !== 9) {
-      console.warn("❌ Falha na validação: NIF inválido.");
       toast.error("O NIF é obrigatório e deve conter exatamente 9 dígitos.");
       return false;
     }
     if (!personal.phone || personal.phone.replace(/[^0-9]/g, "").length < 9) {
-      console.warn("❌ Falha na validação: Telefone inválido.");
       toast.error("O telefone é obrigatório e deve ter um formato válido (mín. 9 dígitos).");
       return false;
     }
     if (!personal.address || personal.address.trim().length < 5) {
-      console.warn("❌ Falha na validação: Morada vazia ou muito curta.");
       toast.error("A morada é obrigatória.");
       return false;
     }
     const postalRegex = /^\d{4}-\d{3}$/;
     if (!personal.postalCode || !postalRegex.test(personal.postalCode)) {
-      console.warn("❌ Falha na validação: Código Postal incorreto.");
       toast.error("O código postal é obrigatório e deve seguir o formato XXXX-XXX.");
       return false;
     }
     if (!personal.freguesia || personal.freguesia.trim().length < 2) {
-      console.warn("❌ Falha na validação: Freguesia vazia.");
       toast.error("A freguesia é obrigatória.");
       return false;
     }
     if (!personal.institution || personal.institution.trim().length < 3) {
-      console.warn("❌ Falha na validação: Instituição ausente.");
       toast.error("A instituição de ensino superior (1ª preferência) é obrigatória.");
       return false;
     }
     if (!personal.course || personal.course.trim().length < 3) {
-      console.warn("❌ Falha na validação: Curso ausente.");
       toast.error("O curso de ensino superior é obrigatório.");
       return false;
     }
     if (!personal.academicYear) {
-      console.warn("❌ Falha na validação: Ano Letivo ausente.");
       toast.error("A seleção do ano letivo é obrigatória.");
       return false;
     }
 
+    // Validação do Agregado Familiar
     for (let i = 0; i < family.length; i++) {
       const m = family[i];
       if (!m.fullName || m.fullName.trim().length < 3) {
-        console.warn(`❌ Falha no agregado familiar: Membro #${i + 1} sem nome.`);
         toast.error(`O nome do familiar #${i + 1} é obrigatório.`);
         return false;
       }
       if (!m.nif || m.nif.length !== 9) {
-        console.warn(`❌ Falha no agregado familiar: Membro ${m.fullName} com NIF incorreto.`);
         toast.error(`O NIF do familiar "${m.fullName}" deve ter exatamente 9 dígitos.`);
         return false;
       }
       if (!m.phone || m.phone.replace(/[^0-9]/g, "").length < 9) {
-        console.warn(`❌ Falha no agregado familiar: Membro ${m.fullName} sem telefone.`);
         toast.error(`O telefone de "${m.fullName}" deve ter um formato válido (mín. 9 dígitos).`);
         return false;
       }
+    }
+
+    // Validação das Declarações
+    if (!decl1 || !decl2) {
+      toast.error("Deve aceitar as declarações de responsabilidade e regulamento obrigatórias.");
+      return false;
     }
 
     console.log("✅ [Validação] Formulário 100% correto! A enviar...");
@@ -153,8 +207,6 @@ export default function WizardData() {
   const submit = async () => {
     if (!isFormValid()) return;
 
-    const targetAppId = app?.id || `APP-${new Date().getFullYear()}-TEMP`;
-    
     const payload = {
       candidato: {
         data_nascimento: personal.birthdate,
@@ -179,10 +231,10 @@ export default function WizardData() {
     };
 
     try {
-      //  Grava na Base de Dados real (TiDB)
+      // Grava na Base de Dados real (TiDB / Express)
       await CandidaturaAPI.criarOuAtualizar(payload);
       
-      //  Sincroniza o estado passando os dados reais do AuthContext para a ponte
+      // Sincroniza a ponte do estado local
       if (syncCandidatura && user) {
         await syncCandidatura(user.id || user.userId, user.role || user.tipo);
       }
@@ -193,9 +245,10 @@ export default function WizardData() {
       navigate("/candidatura/documentos");
     } catch (err) {
       console.error("Erro na API ao guardar:", err);
-      toast.error("Ocorreu um erro ao salvar na base de dados externa.");
+      toast.error(err?.response?.data?.error || "Ocorreu um erro ao guardar na base de dados.");
     }
-  }
+  };
+
   const progress = useMemo(() => {
     const required = ["birthdate", "ccNumber", "nif", "address", "postalCode", "freguesia", "institution", "course", "academicYear", "phone"];
     const filled = required.filter((k) => !!personal[k]).length;
@@ -222,7 +275,7 @@ export default function WizardData() {
               <Field label={t("cc_number")} required>
                 <Input 
                   inputMode="numeric"
-                  maxLength={9}
+                  maxLength={8}
                   placeholder="12345678"
                   value={personal.ccNumber ?? ""} 
                   onChange={(e) => setP("ccNumber", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} 
@@ -268,7 +321,7 @@ export default function WizardData() {
               </Field>
               
               <Field label={t("freguesia")} required> 
-              <Select value={personal.freguesia ?? ""} onValueChange={(v) => setP("freguesia", v)}>
+                <Select value={personal.freguesia ?? ""} onValueChange={(v) => setP("freguesia", v)}>
                   <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent>
                     {["Campanário", "Ribeira Brava", "Tabua", "Serra de Água"].map((y) => (
@@ -403,30 +456,48 @@ export default function WizardData() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* SECÇÃO DE DECLARAÇÕES */}
             <div className="mt-6 space-y-4 rounded-lg border border-border p-4 bg-muted/20">
-            <div className="flex items-start gap-3">
-              <Checkbox id="decl1" required className="mt-0.5" />
-              <Label htmlFor="decl1" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
-                Declaro que as informações prestadas neste formulário são verdadeiras e completas, e que estou ciente de que qualquer falsidade ou omissão pode resultar na exclusão da minha candidatura. <span className="text-red-500 font-bold">*</span>
-              </Label>
-            </div>
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="decl1" 
+                  checked={decl1} 
+                  onCheckedChange={setDecl1} 
+                  className="mt-0.5" 
+                />
+                <Label htmlFor="decl1" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                  Declaro que as informações prestadas neste formulário são verdadeiras e completas, e que estou ciente de que qualquer falsidade ou omissão pode resultar na exclusão da minha candidatura. <span className="text-red-500 font-bold">*</span>
+                </Label>
+              </div>
 
-            <div className="flex items-start gap-3">
-              <Checkbox id="decl2" required className="mt-0.5" />
-              <Label htmlFor="decl2" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
-                Declaro que tomei conhecimento das condições e atribuição de vagas de acordo com as normas. <span className="text-red-500 font-bold">*</span>
-              </Label>
-            </div>
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="decl2" 
+                  checked={decl2} 
+                  onCheckedChange={setDecl2} 
+                  className="mt-0.5" 
+                />
+                <Label htmlFor="decl2" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                  Declaro que tomei conhecimento das condições e atribuição de vagas de acordo com as normas. <span className="text-red-500 font-bold">*</span>
+                </Label>
+              </div>
 
-            <div className="flex items-start gap-3">
-              <Checkbox id="decl3" className="mt-0.5" />
-              <Label htmlFor="decl3" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
-                Os dados pessoais recolhidos no âmbito do procedimento serão tratados exclusivamente para efeitos de instrução, análise e decisão das candidaturas, nos termos do Regulamento (UE) 2016/679 do Parlamento Europeu e do Conselho, de 27 de abril de 2016, relativo à proteção das pessoas singulares no que diz respeito ao tratamento de dados pessoais e à livre circulação desses dados, e demais legislação aplicável.
-              </Label>
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="decl3" 
+                  checked={decl3} 
+                  onCheckedChange={setDecl3} 
+                  className="mt-0.5" 
+                />
+                <Label htmlFor="decl3" className="text-xs text-muted-foreground leading-normal cursor-pointer select-none">
+                  Os dados pessoais recolhidos no âmbito do procedimento serão tratados exclusivamente para efeitos de instrução, análise e decisão das candidaturas, nos termos do Regulamento (UE) 2016/679 do Parlamento Europeu e do Conselho, de 27 de abril de 2016, relativo à proteção das pessoas singulares no que diz respeito ao tratamento de dados pessoais e à livre circulação desses dados, e demais legislação aplicável.
+                </Label>
+              </div>
             </div>
-          </div>
           </CardContent>
         </Card>
+
         <div className="mt-6 flex justify-between">
           <Button variant="outline" onClick={() => navigate("/painel")} className="cursor-pointer">
             {t("back")}

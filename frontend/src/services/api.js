@@ -90,20 +90,25 @@ export const DocumentosAPI = {
 };
 
 export const FaqAPI = {
-  listar: () => api.get("/admin/faqs"),
+  listar: () => api.get("/faqs"),
   criar: (payload) => api.post("/admin/faqs", payload),
   atualizar: (id, payload) => api.put(`/admin/faqs/${id}`, payload),
-  eliminar: (id) => api.delete(`/admin/faqs/${id}`)
+  eliminar: (id) => api.delete(`/admin/faqs/${id}`),
 };
 
 export const AdminAPI = {
-  // Aceita quer string de estado quer objeto de query { apenas_atual: "true", ano_letivo: "..." }
   listarCandidaturas: (params) =>
     api.get("/admin/candidaturas", { params: typeof params === "string" ? { estado: params } : params }),
   
   obterAnosLetivos: () => api.get("/admin/anos-letivos"),
   obterCandidatura: (id) => api.get(`/admin/candidaturas/${id}`),
   obterDetalhes: (id) => api.get(`/admin/candidaturas/${id}`),
+
+  // 🟢 NOVO: Método para adicionar observação permanente ao histórico
+  adicionarObservacao: (id, texto) =>
+    api.post(`/admin/candidaturas/${id}/observacoes`, { texto }),
+  adicionarNota: (id, texto) =>
+    api.post(`/admin/candidaturas/${id}/observacoes`, { texto }),
 
   atualizarEstadoCandidatura: (id, estado, observacoes) =>
     api.put(`/admin/candidaturas/${id}/estado`, {
@@ -135,6 +140,4 @@ export const AdminAPI = {
   
   togglePeriodoCandidaturas: (candidaturasAbertas, anoLetivo) =>
     api.put("/admin/periodo-candidaturas", { candidaturasAbertas, anoLetivo }),
-
-  
 };
